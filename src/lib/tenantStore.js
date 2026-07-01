@@ -20,6 +20,8 @@ const TENANT_COLUMNS = `
   updated_at
 `;
 
+const OPERATOR_PASSWORD_KEY = "operatorPasswordHash";
+
 export async function ensureTenantSchema(sqlPromise = getSql()) {
   const sql = await sqlPromise;
   await sql(`
@@ -39,6 +41,48 @@ export async function ensureTenantSchema(sqlPromise = getSql()) {
     )
   `);
   await sql("CREATE INDEX IF NOT EXISTS tenants_status_idx ON tenants (status)");
+  await sql(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+export async function hasOperatorPassword(options = {}) {
+  return Boolean(await getOperatorPasswordHash(options));
+}
+
+export async function getOperatorPasswordHash(options = {}) {
+  const sql = await getStoreSql(options);
+  await ensureTenantSchema(sql);
+  const rows = await sql("SELECT value FROM app_settings WHERE key = $1 LIMIT 1", [OPERATOR_PASSWORD_KEY]);
+  return rows[0]?.value || process.env.OPERATOR_PASSWORD_HASH || "";
+}
+
+export async function createOperatorPassword(input, options = {}) {
+  const sql = await getStoreSql(options);
+  await ensureTenantSchema(sql);
+  if (await hasOperatorPassword({ sql })) throw new Error("메인 운영자 비밀번호가 이미 설정되어 있습니다.");
+  const record = await buildOperatorPasswordRecord(input);
+  await sql("INSERT INTO app_settings (key, value) VALUES ($1, $2)", [record.key, record.value]);
+  return { setupComplete: true };
+}
+
+export async function updateOperatorPassword(input, options = {}) {
+  const sql = await getStoreSql(options);
+  await ensureTenantSchema(sql);
+  const patch = await buildOperatorPasswordPatch(input);
+  await sql(
+    `INSERT INTO app_settings (key, value)
+     VALUES ($1, $2)
+     ON CONFLICT (key)
+     DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [patch.key, patch.value],
+  );
+  return { setupComplete: true };
 }
 
 export async function listTenants({ search = "" } = {}, options = {}) {
@@ -172,6 +216,18 @@ export async function buildTenantUpdatePatch(input) {
     patch.publicDataServiceKey = String(input.publicDataServiceKey ?? "").trim();
   }
   return patch;
+}
+
+export async function buildOperatorPasswordRecord(input) {
+  assertPasswordInput(input.password, "운영자 비밀번호");
+  return {
+    key: OPERATOR_PASSWORD_KEY,
+    value: await hashPassword(String(input.password)),
+  };
+}
+
+export async function buildOperatorPasswordPatch(input) {
+  return buildOperatorPasswordRecord(input);
 }
 
 export function tenantListItem(tenant) {

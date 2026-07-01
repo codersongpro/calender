@@ -8,6 +8,7 @@ import {
   recordAuthSuccess,
 } from "./rateLimit.js";
 import { getTenantBySlug } from "./tenantStore.js";
+import { getOperatorPasswordHash } from "./tenantStore.js";
 import { publicTenantSummary, requireActiveTenant } from "./tenantDomain.js";
 import {
   createScopedSessionToken,
@@ -69,7 +70,8 @@ export async function createTenantAuthResponse(request, tenant, scope, password)
 export async function createOperatorAuthResponse(request, password) {
   const attemptKey = authAttemptKey(request, "operator");
   assertAuthAttemptAllowed(attemptKey);
-  const passwordHash = process.env.OPERATOR_PASSWORD_HASH || "";
+  const passwordHash = await getOperatorPasswordHash();
+  if (!passwordHash) throw httpError("메인 운영자 비밀번호를 먼저 설정해 주세요.", 409);
   if (!(await verifyPassword(String(password ?? ""), passwordHash))) {
     recordAuthFailure(attemptKey);
     throw httpError("운영자 비밀번호가 올바르지 않습니다.", 401);

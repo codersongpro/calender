@@ -116,9 +116,9 @@ export default function SchoolAdminApp({ slug }) {
         <section className="setup-panel">
           <div className="setup-heading">
             <p className="eyebrow">학교 관리</p>
-            <h1>관리 비밀번호를 입력해 주세요.</h1>
+            <h1>학교 운영자 비밀번호를 입력해 주세요.</h1>
           </div>
-          <PasswordUnlock label="관리 비밀번호" buttonLabel="관리 열기" onSubmit={unlock} />
+          <PasswordUnlock label="학교 운영자 비밀번호" buttonLabel="관리 열기" onSubmit={unlock} />
           <StatusBar status={status} error={error} />
         </section>
       </main>
@@ -158,7 +158,7 @@ export default function SchoolAdminApp({ slug }) {
             <input name="editPassword" type="password" minLength={4} />
           </label>
           <label>
-            <span>관리 비밀번호 변경</span>
+            <span>학교 운영자 비밀번호 변경</span>
             <input name="adminPassword" type="password" minLength={4} />
           </label>
           <label>
