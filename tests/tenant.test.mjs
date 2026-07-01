@@ -15,6 +15,8 @@ import {
 import {
   buildTenantCreateRecord,
   buildTenantUpdatePatch,
+  buildOperatorPasswordRecord,
+  buildOperatorPasswordPatch,
   tenantListItem,
 } from "../src/lib/tenantStore.js";
 import { verifyPassword } from "../src/lib/security.js";
@@ -166,4 +168,21 @@ test("tenant list items redact secrets for the operator dashboard", () => {
       updatedAt: "2026-07-01T01:00:00.000Z",
     },
   );
+});
+
+test("operator password records hash the initial main operator password", async () => {
+  const record = await buildOperatorPasswordRecord({ password: "2679" });
+
+  assert.equal(record.key, "operatorPasswordHash");
+  assert.equal(await verifyPassword("2679", record.value), true);
+});
+
+test("operator password records reject missing initial passwords", async () => {
+  await assert.rejects(() => buildOperatorPasswordRecord({ password: "" }), /운영자 비밀번호/);
+});
+
+test("operator password patches hash changed main operator passwords", async () => {
+  const patch = await buildOperatorPasswordPatch({ password: "new-main-secret" });
+
+  assert.equal(await verifyPassword("new-main-secret", patch.value), true);
 });

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PasswordUnlock, StatusBar } from "./PlannerApp.jsx";
 
 export default function OperatorAdminApp() {
+  const [operatorReady, setOperatorReady] = useState(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [tenants, setTenants] = useState([]);
   const [search, setSearch] = useState("");
@@ -13,10 +14,10 @@ export default function OperatorAdminApp() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    loadTenants({ quiet: true });
+    loadOperatorState();
   }, []);
 
-  async function request(url, { method = "GET", body, setData, label, quiet = false } = {}) {
+  async function request(url, { method = "GET", body, setData, label, quiet = false, markAuthenticated = true } = {}) {
     setError("");
     if (!quiet) setStatus("처리 중입니다.");
     const response = await fetch(url, {
@@ -31,10 +32,32 @@ export default function OperatorAdminApp() {
       if (response.status === 401) setAuthenticated(false);
       return null;
     }
-    setAuthenticated(true);
+    if (markAuthenticated) setAuthenticated(true);
     if (setData) setData(data);
     if (!quiet) setStatus(label || "완료되었습니다.");
     return data;
+  }
+
+  async function loadOperatorState() {
+    const data = await request("/api/operator/state", {
+      setData: (state) => setOperatorReady(Boolean(state.setupComplete)),
+      quiet: true,
+      markAuthenticated: false,
+    });
+    if (data?.setupComplete) await loadTenants({ quiet: true });
+  }
+
+  async function setupOperator(password) {
+    const data = await request("/api/operator/setup", {
+      method: "POST",
+      body: { password },
+      label: "메인 운영자 비밀번호를 설정했습니다.",
+      markAuthenticated: false,
+    });
+    if (data?.setupComplete) {
+      setOperatorReady(true);
+      await login(password);
+    }
   }
 
   async function login(password) {
@@ -90,7 +113,7 @@ export default function OperatorAdminApp() {
     if (viewPassword === null) return;
     const editPassword = window.prompt("새 편집 비밀번호");
     if (editPassword === null) return;
-    const adminPassword = window.prompt("새 관리 비밀번호");
+    const adminPassword = window.prompt("새 학교 운영자 비밀번호");
     if (adminPassword === null) return;
     const data = await request(`/api/operator/tenants/${encodeURIComponent(slug)}`, {
       method: "PATCH",
@@ -98,6 +121,36 @@ export default function OperatorAdminApp() {
       label: "학교 비밀번호를 재설정했습니다.",
     });
     if (data) await loadTenants();
+  }
+
+  async function changeOperatorPassword(event) {
+    event.preventDefault();
+    const input = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const data = await request("/api/operator/password", {
+      method: "PATCH",
+      body: { password: input.operatorPassword },
+      label: "메인 운영자 비밀번호를 변경했습니다.",
+    });
+    if (data) event.currentTarget.reset();
+  }
+
+  if (operatorReady === null) {
+    return <div className="loading">불러오는 중</div>;
+  }
+
+  if (!operatorReady) {
+    return (
+      <main className="setup-page">
+        <section className="setup-panel">
+          <div className="setup-heading">
+            <p className="eyebrow">메인 관리</p>
+            <h1>처음 사용할 운영자 비밀번호를 설정해 주세요.</h1>
+          </div>
+          <PasswordUnlock label="새 운영자 비밀번호" buttonLabel="처음 설정" onSubmit={setupOperator} />
+          <StatusBar status={status} error={error} />
+        </section>
+      </main>
+    );
   }
 
   if (!authenticated) {
@@ -151,7 +204,7 @@ export default function OperatorAdminApp() {
             <input name="editPassword" type="password" required minLength={4} />
           </label>
           <label>
-            <span>관리 비밀번호</span>
+            <span>학교 운영자 비밀번호</span>
             <input name="adminPassword" type="password" required minLength={4} />
           </label>
           <label>
@@ -174,6 +227,19 @@ export default function OperatorAdminApp() {
         </form>
 
         <section className="setup-panel admin-sections">
+          <form className="form-grid" onSubmit={changeOperatorPassword}>
+            <div className="setup-heading wide">
+              <p className="eyebrow">메인 운영자</p>
+              <h2>운영자 비밀번호 변경</h2>
+            </div>
+            <label className="wide">
+              <span>새 운영자 비밀번호</span>
+              <input name="operatorPassword" type="password" required minLength={4} />
+            </label>
+            <button type="submit" className="secondary-button wide">
+              운영자 비밀번호 저장
+            </button>
+          </form>
           <div className="inline-unlock">
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="기관명 또는 학교코드 검색" />
             <button type="button" className="secondary-button" onClick={() => loadTenants()}>
