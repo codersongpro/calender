@@ -15,6 +15,7 @@ import {
 import {
   buildTenantCreateRecord,
   buildTenantUpdatePatch,
+  getOperatorPasswordHash,
   buildOperatorPasswordRecord,
   buildOperatorPasswordPatch,
   tenantListItem,
@@ -175,6 +176,21 @@ test("operator password records hash the initial main operator password", async 
 
   assert.equal(record.key, "operatorPasswordHash");
   assert.equal(await verifyPassword("2679", record.value), true);
+});
+
+test("tenant store uses the Neon query API for string SQL", async () => {
+  const calls = [];
+  function sql() {
+    throw new Error("tagged template only");
+  }
+  sql.query = async (query, params = []) => {
+    calls.push({ query, params });
+    if (query.includes("SELECT value FROM app_settings")) return [{ value: "stored-hash" }];
+    return [];
+  };
+
+  assert.equal(await getOperatorPasswordHash({ sql }), "stored-hash");
+  assert.deepEqual(calls.at(-1).params, ["operatorPasswordHash"]);
 });
 
 test("operator password records reject missing initial passwords", async () => {

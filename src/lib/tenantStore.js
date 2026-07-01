@@ -24,7 +24,7 @@ const OPERATOR_PASSWORD_KEY = "operatorPasswordHash";
 
 export async function ensureTenantSchema(sqlPromise = getSql()) {
   const sql = await sqlPromise;
-  await sql(`
+  await runQuery(sql, `
     CREATE TABLE IF NOT EXISTS tenants (
       id TEXT PRIMARY KEY,
       slug TEXT NOT NULL UNIQUE,
@@ -40,8 +40,8 @@ export async function ensureTenantSchema(sqlPromise = getSql()) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  await sql("CREATE INDEX IF NOT EXISTS tenants_status_idx ON tenants (status)");
-  await sql(`
+  await runQuery(sql, "CREATE INDEX IF NOT EXISTS tenants_status_idx ON tenants (status)");
+  await runQuery(sql, `
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -58,7 +58,7 @@ export async function hasOperatorPassword(options = {}) {
 export async function getOperatorPasswordHash(options = {}) {
   const sql = await getStoreSql(options);
   await ensureTenantSchema(sql);
-  const rows = await sql("SELECT value FROM app_settings WHERE key = $1 LIMIT 1", [OPERATOR_PASSWORD_KEY]);
+  const rows = await runQuery(sql, "SELECT value FROM app_settings WHERE key = $1 LIMIT 1", [OPERATOR_PASSWORD_KEY]);
   return rows[0]?.value || process.env.OPERATOR_PASSWORD_HASH || "";
 }
 
@@ -67,7 +67,7 @@ export async function createOperatorPassword(input, options = {}) {
   await ensureTenantSchema(sql);
   if (await hasOperatorPassword({ sql })) throw new Error("메인 운영자 비밀번호가 이미 설정되어 있습니다.");
   const record = await buildOperatorPasswordRecord(input);
-  await sql("INSERT INTO app_settings (key, value) VALUES ($1, $2)", [record.key, record.value]);
+  await runQuery(sql, "INSERT INTO app_settings (key, value) VALUES ($1, $2)", [record.key, record.value]);
   return { setupComplete: true };
 }
 
@@ -75,7 +75,8 @@ export async function updateOperatorPassword(input, options = {}) {
   const sql = await getStoreSql(options);
   await ensureTenantSchema(sql);
   const patch = await buildOperatorPasswordPatch(input);
-  await sql(
+  await runQuery(
+    sql,
     `INSERT INTO app_settings (key, value)
      VALUES ($1, $2)
      ON CONFLICT (key)
@@ -90,14 +91,15 @@ export async function listTenants({ search = "" } = {}, options = {}) {
   await ensureTenantSchema(sql);
   const term = String(search ?? "").trim();
   const rows = term
-    ? await sql(
+    ? await runQuery(
+        sql,
         `SELECT ${TENANT_COLUMNS}
          FROM tenants
          WHERE slug ILIKE $1 OR org_name ILIKE $1
          ORDER BY created_at DESC`,
         [`%${term}%`],
       )
-    : await sql(`SELECT ${TENANT_COLUMNS} FROM tenants ORDER BY created_at DESC`);
+    : await runQuery(sql, `SELECT ${TENANT_COLUMNS} FROM tenants ORDER BY created_at DESC`);
   return rows.map(mapTenantRow);
 }
 
@@ -105,7 +107,7 @@ export async function getTenantBySlug(slug, options = {}) {
   const sql = await getStoreSql(options);
   await ensureTenantSchema(sql);
   const normalizedSlug = normalizeTenantSlug(slug);
-  const rows = await sql(`SELECT ${TENANT_COLUMNS} FROM tenants WHERE slug = $1 LIMIT 1`, [normalizedSlug]);
+  const rows = await runQuery(sql, `SELECT ${TENANT_COLUMNS} FROM tenants WHERE slug = $1 LIMIT 1`, [normalizedSlug]);
   return rows[0] ? mapTenantRow(rows[0]) : null;
 }
 
@@ -113,7 +115,8 @@ export async function createTenant(input, options = {}) {
   const sql = await getStoreSql(options);
   await ensureTenantSchema(sql);
   const record = await buildTenantCreateRecord(input);
-  const rows = await sql(
+  const rows = await runQuery(
+    sql,
     `INSERT INTO tenants (
       id,
       slug,
@@ -154,7 +157,8 @@ export async function updateTenant(slug, input, options = {}) {
   const assignments = keys.map((key, index) => `${tenantDbColumn(key)} = $${index + 1}`);
   const values = keys.map((key) => patch[key]);
   values.push(normalizeTenantSlug(slug));
-  const rows = await sql(
+  const rows = await runQuery(
+    sql,
     `UPDATE tenants
      SET ${assignments.join(", ")}, updated_at = NOW()
      WHERE slug = $${values.length}
@@ -169,7 +173,8 @@ export async function setTenantStatus(slug, status, options = {}) {
   const sql = await getStoreSql(options);
   await ensureTenantSchema(sql);
   if (!["active", "suspended"].includes(status)) throw new Error("올바른 상태가 아닙니다.");
-  const rows = await sql(
+  const rows = await runQuery(
+    sql,
     `UPDATE tenants
      SET status = $1, updated_at = NOW()
      WHERE slug = $2
@@ -260,6 +265,11 @@ export function mapTenantRow(row) {
 
 async function getStoreSql(options) {
   return options.sql ?? getSql();
+}
+
+async function runQuery(sql, query, params = []) {
+  if (typeof sql.query === "function") return sql.query(query, params);
+  return sql(query, params);
 }
 
 function tenantDbColumn(key) {
