@@ -414,6 +414,46 @@ select {
   min-height: 100svh;
 }
 
+.operator-guide {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+  gap: 18px;
+  padding: 18px clamp(16px, 4vw, 44px) 0;
+}
+
+.operator-guide h2 {
+  font-size: 22px;
+}
+
+.operator-guide ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.operator-guide li {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.operator-guide strong {
+  font-size: 14px;
+}
+
+.operator-guide span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .admin-layout {
   display: grid;
   grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
@@ -531,6 +571,14 @@ select {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-guide {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-guide ol {
     grid-template-columns: 1fr;
   }
 

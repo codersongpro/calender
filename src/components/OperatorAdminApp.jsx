@@ -6,6 +6,7 @@ import { PasswordUnlock, StatusBar } from "./PlannerApp.jsx";
 
 export default function OperatorAdminApp() {
   const [operatorReady, setOperatorReady] = useState(null);
+  const [operatorLoadFailed, setOperatorLoadFailed] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [tenants, setTenants] = useState([]);
   const [search, setSearch] = useState("");
@@ -20,12 +21,20 @@ export default function OperatorAdminApp() {
   async function request(url, { method = "GET", body, setData, label, quiet = false, markAuthenticated = true } = {}) {
     setError("");
     if (!quiet) setStatus("처리 중입니다.");
-    const response = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json();
+    let response;
+    let data;
+    try {
+      response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      data = await response.json();
+    } catch {
+      setStatus("");
+      setError("관리 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return null;
+    }
     if (!response.ok) {
       setStatus("");
       setError(data.error || "요청을 처리하지 못했습니다.");
@@ -39,11 +48,16 @@ export default function OperatorAdminApp() {
   }
 
   async function loadOperatorState() {
+    setOperatorLoadFailed(false);
     const data = await request("/api/operator/state", {
       setData: (state) => setOperatorReady(Boolean(state.setupComplete)),
       quiet: true,
       markAuthenticated: false,
     });
+    if (!data) {
+      setOperatorLoadFailed(true);
+      return;
+    }
     if (data?.setupComplete) await loadTenants({ quiet: true });
   }
 
@@ -135,6 +149,23 @@ export default function OperatorAdminApp() {
   }
 
   if (operatorReady === null) {
+    if (operatorLoadFailed) {
+      return (
+        <main className="setup-page">
+          <section className="setup-panel">
+            <div className="setup-heading">
+              <p className="eyebrow">메인 관리</p>
+              <h1>관리 상태를 불러오지 못했습니다.</h1>
+            </div>
+            <p className="page-copy">배포 환경 설정과 데이터베이스 연결을 확인한 뒤 다시 시도해 주세요.</p>
+            <button type="button" className="secondary-button" onClick={loadOperatorState}>
+              다시 시도
+            </button>
+            <StatusBar status={status} error={error} />
+          </section>
+        </main>
+      );
+    }
     return <div className="loading">불러오는 중</div>;
   }
 
@@ -176,6 +207,35 @@ export default function OperatorAdminApp() {
           <h1>학교 사이트 관리</h1>
         </div>
       </header>
+
+      <section className="operator-guide">
+        <div>
+          <p className="eyebrow">학교별 진행 순서</p>
+          <h2>새 학교는 아래 순서대로 준비하면 됩니다.</h2>
+        </div>
+        <ol>
+          <li>
+            <strong>빈 스프레드시트 준비</strong>
+            <span>학교별 Google Spreadsheet를 만들고 서비스 계정에 편집 권한을 줍니다.</span>
+          </li>
+          <li>
+            <strong>학교 사이트 생성</strong>
+            <span>기관명, 학교코드, 스프레드시트 주소, 조회/편집/학교 운영자 비밀번호를 입력합니다.</span>
+          </li>
+          <li>
+            <strong>주소 전달</strong>
+            <span>생성된 조회 주소는 교직원에게, 학교 관리 주소는 담당자에게 전달합니다.</span>
+          </li>
+          <li>
+            <strong>학교 관리 설정</strong>
+            <span>학교 관리 화면에서 공휴일을 갱신하고 필요하면 기존 월별 탭을 가져옵니다.</span>
+          </li>
+          <li>
+            <strong>월별 계획 운영</strong>
+            <span>편집 비밀번호로 행사를 추가·수정하고 조회 비밀번호로 내부 공유합니다.</span>
+          </li>
+        </ol>
+      </section>
 
       <section className="admin-layout">
         <form className="setup-panel form-grid" onSubmit={createTenant}>
