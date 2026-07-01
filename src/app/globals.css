@@ -99,7 +99,9 @@ h2 {
 .ghost-button,
 .danger-button,
 .small-button,
-.icon-button {
+.icon-button,
+.primary-link,
+.secondary-link {
   min-height: 40px;
   border-radius: 6px;
   border: 1px solid transparent;
@@ -108,12 +110,14 @@ h2 {
   white-space: nowrap;
 }
 
-.primary-button {
+.primary-button,
+.primary-link {
   background: var(--accent);
   color: #ffffff;
 }
 
-.secondary-button {
+.secondary-button,
+.secondary-link {
   background: #e7f2f6;
   color: #0c5369;
   border-color: #b9d6e0;
@@ -145,6 +149,18 @@ h2 {
   background: #f8fafc;
   border-color: var(--line);
   font-size: 24px;
+}
+
+.primary-link,
+.secondary-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.page-copy {
+  color: var(--muted);
+  margin: 12px 0 18px;
 }
 
 .control-band {
@@ -394,6 +410,46 @@ select {
   gap: 18px;
 }
 
+.admin-page {
+  min-height: 100svh;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+  padding: 18px clamp(16px, 4vw, 44px) 48px;
+  align-items: start;
+}
+
+.tenant-table-wrap {
+  overflow-x: auto;
+}
+
+.tenant-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.tenant-table th,
+.tenant-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tenant-table th {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tenant-table a {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
 .empty-day {
   margin: 0;
   color: var(--muted);
@@ -407,6 +463,7 @@ select {
 
   .top-actions,
   .top-actions button,
+  .top-actions a,
   .control-band,
   .control-band label,
   .inline-unlock,
@@ -474,6 +531,10 @@ select {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-layout {
     grid-template-columns: 1fr;
   }
 }

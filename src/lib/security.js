@@ -23,22 +23,22 @@ export async function verifyPassword(password, storedHash) {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-export function createSessionToken(payload, secret) {
+export function createSessionToken(payload, secret, { now = Date.now() } = {}) {
   const encodedPayload = Buffer.from(
-    JSON.stringify({ ...payload, iat: Date.now(), nonce: randomBytes(8).toString("base64url") }),
+    JSON.stringify({ ...payload, iat: now, nonce: randomBytes(8).toString("base64url") }),
   ).toString("base64url");
   const signature = signTokenPayload(encodedPayload, secret);
   return `${encodedPayload}.${signature}`;
 }
 
-export function verifySessionToken(token, secret, expectedScope) {
+export function verifySessionToken(token, secret, expectedScope, { now = Date.now() } = {}) {
   const [payload, signature] = String(token ?? "").split(".");
   if (!payload || !signature) return null;
   if (signTokenPayload(payload, secret) !== signature) return null;
 
   const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
   if (expectedScope && data.scope !== expectedScope) return null;
-  if (data.expiresAt && Date.now() > Number(data.expiresAt)) return null;
+  if (data.expiresAt && now > Number(data.expiresAt)) return null;
   return data;
 }
 
