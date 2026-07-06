@@ -9,7 +9,7 @@ export default function SchoolAdminApp({ slug }) {
   const basePath = useMemo(() => `/api/schools/${encodeURIComponent(slug)}`, [slug]);
   const [config, setConfig] = useState(null);
   const [schoolYear, setSchoolYear] = useState(currentSchoolYear());
-  const [holiday, setHoliday] = useState({ date: "", name: "", type: "재량휴업일", memo: "" });
+  const [holiday, setHoliday] = useState({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
@@ -122,7 +122,7 @@ export default function SchoolAdminApp({ slug }) {
       body: holiday,
       label: "휴일을 저장했습니다.",
     });
-    if (data) setHoliday({ date: "", name: "", type: "재량휴업일", memo: "" });
+    if (data) setHoliday({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
   }
 
   if (!config) return <div className="loading">불러오는 중</div>;
@@ -192,6 +192,12 @@ export default function SchoolAdminApp({ slug }) {
             <span>조회 비밀번호 변경</span>
             <input name="viewPassword" type="password" minLength={4} />
           </label>
+          {config.authRequired ? (
+            <label className="checkbox-label wide">
+              <input type="checkbox" name="clearViewPassword" value="true" />
+              <span>조회 비밀번호 없이 주소만으로 볼 수 있게 변경</span>
+            </label>
+          ) : null}
           <label>
             <span>편집 비밀번호 변경</span>
             <input name="editPassword" type="password" minLength={4} />
@@ -272,6 +278,15 @@ export default function SchoolAdminApp({ slug }) {
             <label>
               <span>휴일 날짜</span>
               <input type="date" required value={holiday.date} onChange={(event) => setHoliday({ ...holiday, date: event.target.value })} />
+            </label>
+            <label>
+              <span>종료일</span>
+              <input
+                type="date"
+                min={holiday.date || undefined}
+                value={holiday.endDate}
+                onChange={(event) => setHoliday({ ...holiday, endDate: event.target.value })}
+              />
             </label>
             <label>
               <span>종류</span>

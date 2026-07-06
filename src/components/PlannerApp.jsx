@@ -2,18 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getPrintRowCount, getTimeOptions } from "../lib/domain.js";
+import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getPrintRowCount } from "../lib/domain.js";
 
 const blankEvent = {
   date: "",
+  endDate: "",
   category: "행사",
   time: "",
   title: "",
   place: "",
   owner: "",
 };
-
-const TIME_OPTIONS = getTimeOptions();
 
 export default function PlannerApp({ slug }) {
   const basePath = useMemo(() => `/api/schools/${encodeURIComponent(slug)}`, [slug]);
@@ -69,6 +68,10 @@ export default function PlannerApp({ slug }) {
     return data;
   }
 
+  function changeSchoolYear(amount) {
+    setSchoolYear((value) => Number(value || currentSchoolYear()) + amount);
+  }
+
   async function unlock(scope, password) {
     const data = await request(`${basePath}/auth/${scope}`, {
       method: "POST",
@@ -92,6 +95,7 @@ export default function PlannerApp({ slug }) {
     setEditingEventId(event.id);
     setEventDraft({
       date: event.date,
+      endDate: event.endDate || "",
       category: event.category,
       time: event.time,
       title: event.title,
@@ -209,16 +213,22 @@ export default function PlannerApp({ slug }) {
       </header>
 
       <section className="control-band">
-        <label>
-          <span>학년도</span>
-          <input
-            type="number"
-            min="2000"
-            max="2100"
-            value={schoolYear}
-            onChange={(event) => setSchoolYear(Number(event.target.value))}
-          />
-        </label>
+        <div className="year-stepper">
+          <button type="button" className="secondary-button year-nav-button" onClick={() => changeSchoolYear(-1)}>
+            이전
+          </button>
+          <label>
+            <span>학년도</span>
+            <input
+              type="number"
+              value={schoolYear}
+              onChange={(event) => setSchoolYear(Number(event.target.value))}
+            />
+          </label>
+          <button type="button" className="secondary-button year-nav-button" onClick={() => changeSchoolYear(1)}>
+            다음
+          </button>
+        </div>
         <label>
           <span>월</span>
           <select value={month} onChange={(event) => setMonth(Number(event.target.value))}>
@@ -368,8 +378,17 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
         </header>
         <form onSubmit={onSubmit} className="form-grid">
           <label>
-            <span>날짜</span>
+            <span>시작일</span>
             <input type="date" value={draft.date} required onChange={(event) => setDraft({ ...draft, date: event.target.value })} />
+          </label>
+          <label>
+            <span>종료일(선택)</span>
+            <input
+              type="date"
+              min={draft.date || undefined}
+              value={draft.endDate || ""}
+              onChange={(event) => setDraft({ ...draft, endDate: event.target.value })}
+            />
           </label>
           <label>
             <span>구분</span>
@@ -406,16 +425,11 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           <label>
             <span>시간</span>
             <input
-              list="time-option-list"
+              type="time"
+              step="60"
               value={draft.time}
               onChange={(event) => setDraft({ ...draft, time: event.target.value })}
-              placeholder="09:00 또는 직접입력"
             />
-            <datalist id="time-option-list">
-              {TIME_OPTIONS.map((time) => (
-                <option key={time} value={time} />
-              ))}
-            </datalist>
           </label>
           <label>
             <span>담당자</span>

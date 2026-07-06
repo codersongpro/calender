@@ -177,6 +177,20 @@ h2 {
   border-bottom: 1px solid #cfe0e7;
 }
 
+.year-stepper {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.year-stepper label {
+  min-width: 128px;
+}
+
+.year-nav-button {
+  padding-inline: 10px;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -599,6 +613,7 @@ input[type="file"] {
   .top-actions a,
   .control-band,
   .control-band label,
+  .year-stepper,
   .inline-unlock,
   .inline-unlock input,
   .inline-unlock button {
@@ -611,6 +626,17 @@ input[type="file"] {
     align-items: end;
     gap: 10px;
     padding: 12px 16px;
+  }
+
+  .year-stepper {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-column: 1 / -1;
+    align-items: end;
+  }
+
+  .year-stepper label {
+    min-width: 0;
   }
 
   .control-band .inline-unlock {
@@ -823,9 +849,10 @@ input[type="file"] {
 
 @media print {
   :root {
-    --print-page-height: 100vh;
-    --print-title-height: 10mm;
-    --print-header-height: 6mm;
+    --print-page-height: 287mm;
+    --print-title-height: 7mm;
+    --print-header-height: 5mm;
+    --print-row-height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
   }
 
   html,
@@ -872,11 +899,11 @@ input[type="file"] {
   }
 
   .print-title h2 {
-    font-size: 18px;
+    font-size: 14px;
   }
 
   .print-title p {
-    font-size: 11px;
+    font-size: 9px;
   }
 
   .planner-table {
@@ -884,8 +911,8 @@ input[type="file"] {
     flex: 1 1 auto;
     height: calc(var(--print-page-height) - var(--print-title-height));
     max-height: calc(var(--print-page-height) - var(--print-title-height));
-    font-size: 9px;
-    line-height: 1.18;
+    font-size: 7.5px;
+    line-height: 1.05;
     page-break-inside: avoid;
     break-inside: avoid;
   }
@@ -893,16 +920,24 @@ input[type="file"] {
   .planner-table th,
   .planner-table td {
     overflow: hidden;
-    padding: 0.6mm 1mm;
+    padding: 0.25mm 0.7mm;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .planner-table td {
+    height: var(--print-row-height);
+    max-height: var(--print-row-height);
   }
 
   .planner-table th {
     height: var(--print-header-height);
-    font-size: 10px;
+    font-size: 8px;
   }
 
   .planner-table tbody tr {
-    height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
+    height: var(--print-row-height);
+    max-height: var(--print-row-height);
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -917,16 +952,28 @@ input[type="file"] {
     display: block !important;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.05;
+  }
+
+  .holiday-line {
+    display: block;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .holiday-line span,
   .category-pill {
-    min-height: 16px;
-    padding: 0 5px;
-    font-size: 8px;
+    min-height: 0;
+    padding: 0 3px;
+    font-size: 7px;
+    line-height: 1.05;
   }
 
   @page {
-    margin: 6mm;
+    size: A4 portrait;
+    margin: 5mm;
   }
 }

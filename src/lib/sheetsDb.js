@@ -6,6 +6,7 @@ import {
   getMonthBounds,
   getYearMonthFromLegacyTab,
   HOLIDAY_HEADERS,
+  isItemInRange,
   makeId,
   objectToRow,
   parseLegacyRows,
@@ -43,7 +44,7 @@ export async function syncSettingsSheet(config) {
 
 export async function listEvents(config) {
   await ensureInstitutionDatabase(config);
-  const rows = await getValues(config.spreadsheetId, "'Events'!A:K");
+  const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
   return eventsFromRows(rows);
 }
 
@@ -55,15 +56,15 @@ export async function listCategories(config) {
 
 export async function listHolidays(config) {
   await ensureInstitutionDatabase(config);
-  const rows = await getValues(config.spreadsheetId, "'Holidays'!A:I");
+  const rows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
   return holidaysFromRows(rows);
 }
 
 export async function getMonthData(config, { year, month }, options = {}) {
   const { events, holidays, categories } = await getInstitutionData(config, options);
   const bounds = getMonthBounds(year, month);
-  const monthEvents = events.filter((event) => event.date >= bounds.start && event.date <= bounds.end);
-  const monthHolidays = holidays.filter((holiday) => holiday.date >= bounds.start && holiday.date <= bounds.end);
+  const monthEvents = events.filter((event) => isItemInRange(event, bounds.start, bounds.end));
+  const monthHolidays = holidays.filter((holiday) => isItemInRange(holiday, bounds.start, bounds.end));
   return {
     config: {
       orgName: config.orgName,
@@ -79,6 +80,7 @@ export async function createEvent(config, input) {
   const event = {
     id: makeId("evt"),
     date: String(input.date ?? ""),
+    endDate: String(input.endDate ?? ""),
     category: String(input.category ?? ""),
     time: String(input.time ?? ""),
     title: String(input.title ?? ""),
@@ -89,42 +91,43 @@ export async function createEvent(config, input) {
     updatedAt: now,
     deletedAt: "",
   };
-  await appendValues(config.spreadsheetId, "'Events'!A2:K", [objectToRow(event, EVENT_HEADERS)]);
+  await appendValues(config.spreadsheetId, "'Events'!A2:L", [objectToRow(event, EVENT_HEADERS)]);
   await logEdit(config, "create", event.id, "", event);
   clearInstitutionDataCache(config.spreadsheetId);
   return event;
 }
 
 export async function updateEvent(config, id, input) {
-  const rows = await getValues(config.spreadsheetId, "'Events'!A:K");
+  const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
   const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id);
   const updated = {
     ...object,
-    ...Object.fromEntries(["date", "category", "time", "title", "place", "owner", "sortOrder"].map((key) => [key, input[key] ?? object[key] ?? ""])),
+    ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder"].map((key) => [key, input[key] ?? object[key] ?? ""])),
     updatedAt: new Date().toISOString(),
   };
-  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:K${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);
+  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:L${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);
   await logEdit(config, "update", id, object, updated);
   clearInstitutionDataCache(config.spreadsheetId);
   return updated;
 }
 
 export async function deleteEvent(config, id) {
-  const rows = await getValues(config.spreadsheetId, "'Events'!A:K");
+  const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
   const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id);
   const deleted = { ...object, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:K${rowNumber}`, [objectToRow(deleted, EVENT_HEADERS)]);
+  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:L${rowNumber}`, [objectToRow(deleted, EVENT_HEADERS)]);
   await logEdit(config, "delete", id, object, deleted);
   clearInstitutionDataCache(config.spreadsheetId);
   return deleted;
 }
 
 export async function saveHoliday(config, input) {
-  const rows = await getValues(config.spreadsheetId, "'Holidays'!A:I");
+  const rows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
   const now = new Date().toISOString();
   const holiday = {
     id: input.id || makeId("hol"),
     date: String(input.date ?? ""),
+    endDate: String(input.endDate ?? ""),
     name: String(input.name ?? ""),
     type: String(input.type ?? "기관휴일"),
     source: String(input.source ?? "admin"),
@@ -137,11 +140,11 @@ export async function saveHoliday(config, input) {
   const existing = rows.slice(1).findIndex((row) => row[0] === holiday.id);
   if (existing >= 0) {
     const rowNumber = existing + 2;
-    await updateValues(config.spreadsheetId, `'Holidays'!A${rowNumber}:I${rowNumber}`, [
+    await updateValues(config.spreadsheetId, `'Holidays'!A${rowNumber}:J${rowNumber}`, [
       objectToRow(holiday, HOLIDAY_HEADERS),
     ]);
   } else {
-    await appendValues(config.spreadsheetId, "'Holidays'!A2:I", [objectToRow(holiday, HOLIDAY_HEADERS)]);
+    await appendValues(config.spreadsheetId, "'Holidays'!A2:J", [objectToRow(holiday, HOLIDAY_HEADERS)]);
   }
   await logEdit(config, "holiday", holiday.id, "", holiday);
   clearInstitutionDataCache(config.spreadsheetId);
@@ -149,7 +152,7 @@ export async function saveHoliday(config, input) {
 }
 
 export async function replaceAutoHolidays(config, holidays) {
-  const existingRows = await getValues(config.spreadsheetId, "'Holidays'!A:I");
+  const existingRows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
   const existing = rowsToObjects(existingRows, HOLIDAY_HEADERS);
   const adminRows = existing.filter((holiday) => holiday.source === "admin");
   const nextRows = [
@@ -157,8 +160,8 @@ export async function replaceAutoHolidays(config, holidays) {
     ...adminRows.map((holiday) => objectToRow(holiday, HOLIDAY_HEADERS)),
     ...holidays.map((holiday) => objectToRow(holiday, HOLIDAY_HEADERS)),
   ];
-  await clearValues(config.spreadsheetId, "'Holidays'!A:I");
-  await updateValues(config.spreadsheetId, `'Holidays'!A1:I${nextRows.length}`, nextRows);
+  await clearValues(config.spreadsheetId, "'Holidays'!A:J");
+  await updateValues(config.spreadsheetId, `'Holidays'!A1:J${nextRows.length}`, nextRows);
   await logEdit(config, "refresh-holidays", "", "", { count: holidays.length });
   clearInstitutionDataCache(config.spreadsheetId);
   return holidays;
@@ -178,7 +181,7 @@ export async function appendImportedEvents(config, imported, meta = {}, deps = {
   if (events.length > 0) {
     await appendRows(
       config.spreadsheetId,
-      "'Events'!A2:K",
+      "'Events'!A2:L",
       events.map((event) => objectToRow(event, EVENT_HEADERS)),
     );
   }
@@ -223,8 +226,8 @@ async function getInstitutionData(config, options = {}) {
 
   const readValues = options.getValues ?? getValues;
   const [eventRows, holidayRows, categoryRows] = await Promise.all([
-    readValues(spreadsheetId, "'Events'!A:K"),
-    readValues(spreadsheetId, "'Holidays'!A:I"),
+    readValues(spreadsheetId, "'Events'!A:L"),
+    readValues(spreadsheetId, "'Holidays'!A:J"),
     readValues(spreadsheetId, "'Categories'!A:D"),
   ]);
 

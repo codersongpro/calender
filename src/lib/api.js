@@ -9,7 +9,7 @@ import {
 } from "./rateLimit.js";
 import { getTenantBySlug } from "./tenantStore.js";
 import { getOperatorPasswordHash } from "./tenantStore.js";
-import { publicTenantSummary, requireActiveTenant } from "./tenantDomain.js";
+import { publicTenantSummary, requireActiveTenant, tenantRequiresViewAuth } from "./tenantDomain.js";
 import {
   createScopedSessionToken,
   schoolSessionCookieName,
@@ -53,6 +53,9 @@ export async function requireTenantSession(request, slug, requiredScope) {
 }
 
 export async function createTenantAuthResponse(request, tenant, scope, password) {
+  if (scope === "view" && !tenantRequiresViewAuth(tenant)) {
+    return ok({ authenticated: true, scope });
+  }
   const attemptKey = authAttemptKey(request, `tenant:${tenant.slug}:${scope}`);
   assertAuthAttemptAllowed(attemptKey);
   const passwordHash = tenantPasswordHash(tenant, scope);
@@ -106,6 +109,9 @@ export function assertRequiredFields(input, fields) {
 }
 
 function readTenantSessionPayload(request, tenant, requiredScope) {
+  if (requiredScope === "view" && !tenantRequiresViewAuth(tenant)) {
+    return { tenantId: tenant.id, slug: tenant.slug, scope: "view", public: true };
+  }
   for (const scope of ["admin", "edit", "view"]) {
     const token = request.cookies?.get(schoolSessionCookieName(tenant.slug, scope))?.value;
     const payload = verifyScopedSessionToken(token, tenant, requiredScope);

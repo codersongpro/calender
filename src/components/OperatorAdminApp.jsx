@@ -233,7 +233,7 @@ export default function OperatorAdminApp() {
           </li>
           <li>
             <strong>월별 계획 운영</strong>
-            <span>편집 비밀번호로 행사를 추가·수정하고 조회 비밀번호로 내부 공유합니다.</span>
+            <span>편집 비밀번호로 행사를 추가·수정하고, 필요할 때만 조회 비밀번호를 설정합니다.</span>
           </li>
         </ol>
       </section>
@@ -259,7 +259,8 @@ export default function OperatorAdminApp() {
           <GoogleServiceAccountGuide />
           <label>
             <span>조회 비밀번호</span>
-            <input name="viewPassword" type="password" required minLength={4} />
+            <input name="viewPassword" type="password" minLength={4} />
+            <small className="field-help">비워 두면 주소를 아는 사람이 바로 조회할 수 있습니다.</small>
           </label>
           <label>
             <span>편집 비밀번호</span>

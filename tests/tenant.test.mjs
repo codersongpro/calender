@@ -55,6 +55,22 @@ test("public tenant summary never exposes private configuration", () => {
   });
 });
 
+test("public tenant summary does not require auth when view password is empty", () => {
+  const summary = publicTenantSummary({
+    id: "tenant_1",
+    slug: "school-a",
+    orgName: "Public School",
+    spreadsheetId: "secret-sheet",
+    viewPasswordHash: "",
+    editPasswordHash: "edit-hash",
+    adminPasswordHash: "admin-hash",
+    appSecret: "secret",
+    status: "active",
+  });
+
+  assert.equal(summary.authRequired, false);
+});
+
 test("suspended tenants are blocked before sheet data is read", () => {
   assert.throws(
     () => requireActiveTenant({ slug: "school-a", status: "suspended" }),
@@ -115,6 +131,18 @@ test("tenant create records hash every school password and extract spreadsheet i
   assert.equal(await verifyPassword("admin-secret", record.adminPasswordHash), true);
 });
 
+test("tenant create records allow public view by default", async () => {
+  const record = await buildTenantCreateRecord({
+    slug: "school-a",
+    orgName: "Public School",
+    spreadsheetUrl: "sheet-id-12345678901234567890",
+    editPassword: "edit-secret",
+    adminPassword: "admin-secret",
+  });
+
+  assert.equal(record.viewPasswordHash, "");
+});
+
 test("tenant create records require all three school passwords", async () => {
   await assert.rejects(
     () =>
@@ -152,6 +180,12 @@ test("tenant update patches preserve, set, and explicitly clear public data serv
   });
   assert.deepEqual(await buildTenantUpdatePatch({ clearPublicDataServiceKey: true }), {
     publicDataServiceKey: "",
+  });
+});
+
+test("tenant update patches can clear the view password", async () => {
+  assert.deepEqual(await buildTenantUpdatePatch({ clearViewPassword: true }), {
+    viewPasswordHash: "",
   });
 });
 

@@ -12,14 +12,14 @@ test("month loading reads each data sheet once without re-validating sheet schem
       cacheTtlMs: 0,
       getValues: async (_spreadsheetId, range) => {
         calls.push(range);
-        if (range === "'Events'!A:K") {
+        if (range === "'Events'!A:L") {
           return [
-            ["id", "date", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
-            ["evt_1", "2026-07-01", "행사", "", "월례회", "회의실", "교무", "1", "", "", ""],
+            ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
+            ["evt_1", "2026-07-01", "", "행사", "", "월례회", "회의실", "교무", "1", "", "", ""],
           ];
         }
-        if (range === "'Holidays'!A:I") {
-          return [["id", "date", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
+        if (range === "'Holidays'!A:J") {
+          return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
         }
         if (range === "'Categories'!A:D") {
           return [
@@ -32,7 +32,7 @@ test("month loading reads each data sheet once without re-validating sheet schem
     },
   );
 
-  assert.deepEqual(calls, ["'Events'!A:K", "'Holidays'!A:I", "'Categories'!A:D"]);
+  assert.deepEqual(calls, ["'Events'!A:L", "'Holidays'!A:J", "'Categories'!A:D"]);
   assert.equal(data.days[0].events[0].title, "월례회");
 });
 
@@ -43,8 +43,8 @@ test("month loading reuses a short-lived sheet data cache for fast month changes
     cacheTtlMs: 30_000,
     getValues: async (_spreadsheetId, range) => {
       calls.push(range);
-      if (range === "'Events'!A:K") return [["id", "date", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]];
-      if (range === "'Holidays'!A:I") return [["id", "date", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
+      if (range === "'Events'!A:L") return [["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]];
+      if (range === "'Holidays'!A:J") return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
       if (range === "'Categories'!A:D") return [["name", "color", "sortOrder", "active"]];
       throw new Error(`unexpected range ${range}`);
     },
@@ -53,7 +53,7 @@ test("month loading reuses a short-lived sheet data cache for fast month changes
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 7 }, deps);
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 8 }, deps);
 
-  assert.deepEqual(calls, ["'Events'!A:K", "'Holidays'!A:I", "'Categories'!A:D"]);
+  assert.deepEqual(calls, ["'Events'!A:L", "'Holidays'!A:J", "'Categories'!A:D"]);
 });
 
 test("workbook import appends parsed events to the Events sheet", async () => {
@@ -90,8 +90,8 @@ test("workbook import appends parsed events to the Events sheet", async () => {
     [
       "append",
       "sheet_3",
-      "'Events'!A2:K",
-      [["evt_1", "2026-06-01", "행사", "09:00", "시업식", "강당", "문유리", 1, "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", ""]],
+      "'Events'!A2:L",
+      [["evt_1", "2026-06-01", "", "행사", "09:00", "시업식", "강당", "문유리", 1, "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", ""]],
     ],
     ["log", "import-workbook", "", "", { count: 1, sheets: ["6월"], warnings: ["검토 필요"] }],
     ["clear", "sheet_3"],

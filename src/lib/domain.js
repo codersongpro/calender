@@ -3,6 +3,7 @@ const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 export const EVENT_HEADERS = [
   "id",
   "date",
+  "endDate",
   "category",
   "time",
   "title",
@@ -21,6 +22,7 @@ export const EVENT_CATEGORY_OPTIONS = ["출장", "행사", "협의", "심사", "
 export const HOLIDAY_HEADERS = [
   "id",
   "date",
+  "endDate",
   "name",
   "type",
   "source",
@@ -119,6 +121,21 @@ export function isDateInRange(dateKey, start, end) {
   return dateKey >= start && dateKey <= end;
 }
 
+export function getDateRangeEnd(item) {
+  const start = String(item?.date ?? "");
+  if (!start) return "";
+  const end = String(item?.endDate ?? "").trim();
+  return end && end >= start ? end : start;
+}
+
+export function isItemOnDate(item, dateKey) {
+  return item.date <= dateKey && dateKey <= getDateRangeEnd(item);
+}
+
+export function isItemInRange(item, start, end) {
+  return item.date <= end && getDateRangeEnd(item) >= start;
+}
+
 export function normalizeBoolean(value, defaultValue = false) {
   if (value === true || value === "TRUE" || value === "true" || value === "Y") return true;
   if (value === false || value === "FALSE" || value === "false" || value === "N") return false;
@@ -127,16 +144,21 @@ export function normalizeBoolean(value, defaultValue = false) {
 
 export function calculateHolidayClusters(holidays, start, end) {
   const enabledHolidayDates = new Set(
-    holidays
-      .filter((holiday) => normalizeBoolean(holiday.enabled, true) && normalizeBoolean(holiday.isHoliday, true))
-      .map((holiday) => holiday.date),
+    holidays.flatMap((holiday) => {
+      if (!normalizeBoolean(holiday.enabled, true) || !normalizeBoolean(holiday.isHoliday, true)) return [];
+      const dates = [];
+      for (let day = holiday.date; day && day <= getDateRangeEnd(holiday); day = addDays(day, 1)) dates.push(day);
+      return dates;
+    }),
   );
   const dateNames = new Map();
 
   for (const holiday of holidays) {
     if (!normalizeBoolean(holiday.enabled, true) || !normalizeBoolean(holiday.isHoliday, true)) continue;
-    if (!dateNames.has(holiday.date)) dateNames.set(holiday.date, []);
-    dateNames.get(holiday.date).push(holiday.name);
+    for (let day = holiday.date; day && day <= getDateRangeEnd(holiday); day = addDays(day, 1)) {
+      if (!dateNames.has(day)) dateNames.set(day, []);
+      dateNames.get(day).push(holiday.name);
+    }
   }
 
   const candidates = [];
@@ -219,17 +241,6 @@ export function buildMonthCsv(monthData) {
 
 export function getPrintRowCount(monthData) {
   return (monthData.days ?? []).reduce((count, day) => count + Math.max(day.events?.length ?? 0, 1), 0);
-}
-
-export function getTimeOptions(stepMinutes = 10) {
-  const step = Math.max(1, Number(stepMinutes) || 10);
-  const options = [];
-  for (let minutes = 0; minutes < 24 * 60; minutes += step) {
-    const hour = String(Math.floor(minutes / 60)).padStart(2, "0");
-    const minute = String(minutes % 60).padStart(2, "0");
-    options.push(`${hour}:${minute}`);
-  }
-  return options;
 }
 
 export function makeId(prefix = "id") {
@@ -345,10 +356,10 @@ export function buildMonthView({ year, month, events, holidays }) {
     month: Number(month),
     days: days.map((day) => {
       const dayEvents = events
-        .filter((event) => event.date === day.date && !event.deletedAt)
+        .filter((event) => isItemOnDate(event, day.date) && !event.deletedAt)
         .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || String(a.time).localeCompare(String(b.time)));
       const dayHolidays = holidays.filter(
-        (holiday) => holiday.date === day.date && normalizeBoolean(holiday.enabled, true),
+        (holiday) => isItemOnDate(holiday, day.date) && normalizeBoolean(holiday.enabled, true),
       );
       const cluster = holidayClusters.find((item) => day.date >= item.start && day.date <= item.end);
       return {

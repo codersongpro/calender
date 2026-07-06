@@ -3,10 +3,10 @@ import test from "node:test";
 
 import {
   buildMonthCsv,
+  buildMonthView,
   calculateHolidayClusters,
   EVENT_CATEGORY_OPTIONS,
   getPrintRowCount,
-  getTimeOptions,
   getMonthOptions,
   getSchoolYearRange,
   parseLegacyRows,
@@ -70,6 +70,45 @@ test("holiday clusters include weekends connected to holidays", () => {
       names: ["한글날"],
     },
   ]);
+});
+
+test("month view expands event and holiday date ranges", () => {
+  const view = buildMonthView({
+    year: 2026,
+    month: 7,
+    events: [
+      {
+        id: "evt_1",
+        date: "2026-07-20",
+        endDate: "2026-07-22",
+        category: "event",
+        time: "",
+        title: "Summer program",
+        place: "",
+        owner: "",
+        sortOrder: "1",
+      },
+    ],
+    holidays: [
+      {
+        id: "hol_1",
+        date: "2026-07-27",
+        endDate: "2026-07-31",
+        name: "Summer break",
+        isHoliday: true,
+        enabled: true,
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    view.days.filter((day) => day.events.length).map((day) => day.date),
+    ["2026-07-20", "2026-07-21", "2026-07-22"],
+  );
+  assert.deepEqual(
+    view.days.filter((day) => day.holidays.length).map((day) => day.date),
+    ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"],
+  );
 });
 
 test("legacy monthly rows are normalized into individual events", () => {
@@ -243,10 +282,3 @@ test("print row count follows expanded event rows and blank days", () => {
   );
 });
 
-test("time options are generated in 10 minute increments for event entry", () => {
-  const options = getTimeOptions();
-
-  assert.equal(options.length, 144);
-  assert.deepEqual(options.slice(0, 4), ["00:00", "00:10", "00:20", "00:30"]);
-  assert.deepEqual(options.slice(-3), ["23:30", "23:40", "23:50"]);
-});
