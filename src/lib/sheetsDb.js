@@ -164,6 +164,29 @@ export async function replaceAutoHolidays(config, holidays) {
   return holidays;
 }
 
+export async function appendImportedEvents(config, imported, meta = {}, deps = {}) {
+  const ensureDb = deps.ensureInstitutionDatabase ?? ensureInstitutionDatabase;
+  const appendRows = deps.appendValues ?? appendValues;
+  const writeLog = deps.logEdit ?? logEdit;
+  const clearCache = deps.clearInstitutionDataCache ?? clearInstitutionDataCache;
+  const events = imported ?? [];
+  const warnings = meta.warnings ?? [];
+  const sheets = meta.sheets ?? [];
+  const action = meta.action ?? "import-workbook";
+
+  await ensureDb(config);
+  if (events.length > 0) {
+    await appendRows(
+      config.spreadsheetId,
+      "'Events'!A2:K",
+      events.map((event) => objectToRow(event, EVENT_HEADERS)),
+    );
+  }
+  await writeLog(config, action, "", "", { count: events.length, sheets, warnings });
+  clearCache(config.spreadsheetId);
+  return { count: events.length, sheets, warnings };
+}
+
 export async function importLegacyMonthlyTabs(config, schoolYear) {
   await ensureInstitutionDatabase(config);
   const metadata = await getSpreadsheetMetadata(config.spreadsheetId);
@@ -180,16 +203,11 @@ export async function importLegacyMonthlyTabs(config, schoolYear) {
     imported.push(...result.events);
   }
 
-  if (imported.length > 0) {
-    await appendValues(
-      config.spreadsheetId,
-      "'Events'!A2:K",
-      imported.map((event) => objectToRow(event, EVENT_HEADERS)),
-    );
-  }
-  await logEdit(config, "import-legacy", "", "", { count: imported.length, warnings });
-  clearInstitutionDataCache(config.spreadsheetId);
-  return { count: imported.length, sheets: importableSheets, warnings };
+  return appendImportedEvents(config, imported, {
+    action: "import-legacy",
+    sheets: importableSheets,
+    warnings,
+  });
 }
 
 export function clearInstitutionDataCache(spreadsheetId) {

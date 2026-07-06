@@ -268,10 +268,19 @@ export function parseLegacyRows(rows, { schoolYear, tabTitle }) {
 
   const events = [];
   const warnings = [];
+  let currentDay = null;
+  let currentSortOrder = 0;
 
   for (const row of rows.slice(headerIndex + 1)) {
-    const day = Number(String(row[0] ?? "").trim());
+    const parsedDay = Number(String(row[0] ?? "").trim());
+    const isNewDay = Boolean(parsedDay);
+    if (isNewDay) {
+      currentDay = parsedDay;
+      currentSortOrder = 0;
+    }
+    const day = currentDay;
     if (!day) continue;
+
     const titles = splitLines(row[4]);
     if (titles.length === 0) continue;
 
@@ -294,13 +303,14 @@ export function parseLegacyRows(rows, { schoolYear, tabTitle }) {
         title,
         place: pickLegacyLine(placeLines, index),
         owner: pickLegacyLine(ownerLines, index),
-        sortOrder: index + 1,
+        sortOrder: currentSortOrder + index + 1,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         deletedAt: "",
         reviewNeeded,
       });
     });
+    currentSortOrder += titles.length;
   }
 
   return { events, warnings };

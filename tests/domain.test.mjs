@@ -127,6 +127,49 @@ test("legacy monthly rows are normalized into individual events", () => {
   );
 });
 
+test("legacy monthly continuation rows keep the previous day", () => {
+  const rows = [
+    ["일", "요일", "구분", "시 간", "일 정 제 목", "장 소", "담당자"],
+    ["1", "월", "컨설팅", "14:30~16:30", "진천 초등 기초학력 컨설팅", "미정", "김다래"],
+    ["", "", "컨설팅", "10:00~11:00", "방과후.돌봄(늘봄학교) 운영 컨설팅", "도서관", "김민정"],
+  ];
+
+  const result = parseLegacyRows(rows, { schoolYear: 2026, tabTitle: "6월" });
+
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(
+    result.events.map((event) => ({
+      date: event.date,
+      category: event.category,
+      time: event.time,
+      title: event.title,
+      place: event.place,
+      owner: event.owner,
+      sortOrder: event.sortOrder,
+    })),
+    [
+      {
+        date: "2026-06-01",
+        category: "컨설팅",
+        time: "14:30~16:30",
+        title: "진천 초등 기초학력 컨설팅",
+        place: "미정",
+        owner: "김다래",
+        sortOrder: 1,
+      },
+      {
+        date: "2026-06-01",
+        category: "컨설팅",
+        time: "10:00~11:00",
+        title: "방과후.돌봄(늘봄학교) 운영 컨설팅",
+        place: "도서관",
+        owner: "김민정",
+        sortOrder: 2,
+      },
+    ],
+  );
+});
+
 test("password hashes verify the right secret and reject the wrong one", async () => {
   const hash = await hashPassword("school-secret");
 

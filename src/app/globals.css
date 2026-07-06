@@ -203,6 +203,11 @@ select {
   min-width: 0;
 }
 
+input[type="file"] {
+  height: auto;
+  padding-block: 9px;
+}
+
 .inline-unlock {
   display: flex;
   gap: 8px;

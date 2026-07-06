@@ -21,14 +21,22 @@ export default function SchoolAdminApp({ slug }) {
     await request(`${basePath}/config`, { setData: setConfig, quiet: true });
   }
 
-  async function request(url, { method = "GET", body, setData, label, quiet = false } = {}) {
+  async function request(url, { method = "GET", body, formData, setData, label, quiet = false } = {}) {
     setError("");
     if (!quiet) setStatus("처리 중입니다.");
-    const response = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const response = await fetch(
+      url,
+      formData
+        ? {
+            method,
+            body: formData,
+          }
+        : {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: body ? JSON.stringify(body) : undefined,
+          },
+    );
     const data = await response.json();
     if (!response.ok) {
       setStatus("");
@@ -84,6 +92,27 @@ export default function SchoolAdminApp({ slug }) {
       body: { schoolYear },
       label: "기존 월별 탭을 가져왔습니다.",
     });
+  }
+
+  async function importWorkbook(event) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const file = formData.get("file");
+    if (!file || !file.name) {
+      setError("업로드할 엑셀 파일을 선택해 주세요.");
+      return;
+    }
+    formData.set("schoolYear", String(schoolYear));
+    const data = await request(`${basePath}/import`, {
+      method: "POST",
+      formData,
+      label: "엑셀 파일을 가져왔습니다.",
+    });
+    if (data) {
+      event.currentTarget.reset();
+      const warningText = data.warnings?.length ? ` 검토 필요 ${data.warnings.length}건이 있습니다.` : "";
+      setStatus(`엑셀 파일에서 ${data.count}개 일정을 가져왔습니다.${warningText}`);
+    }
   }
 
   async function saveHoliday(event) {
@@ -224,6 +253,20 @@ export default function SchoolAdminApp({ slug }) {
               </button>
             </div>
           </div>
+
+          <form className="form-grid" onSubmit={importWorkbook}>
+            <label className="wide">
+              <span>월별 행사계획 엑셀 업로드</span>
+              <input name="file" type="file" accept=".xlsx,.xlsm" required />
+              <small className="field-help">
+                월별 시트(3월~2월)의 일, 요일, 구분, 시 간, 일 정 제 목, 장 소, 담당자 열을 읽어 현재 일정에 추가합니다. 같은 파일을 다시 올리면 중복
+                추가될 수 있습니다.
+              </small>
+            </label>
+            <button type="submit" className="primary-button wide">
+              엑셀 업로드 반영
+            </button>
+          </form>
 
           <form className="form-grid" onSubmit={saveHoliday}>
             <label>
