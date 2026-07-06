@@ -35,8 +35,8 @@ export default function PlannerApp({ slug }) {
     const beforePrint = () => {
       const surface = document.querySelector(".print-surface");
       if (!surface) return;
-      const availableHeight = 1040;
-      const scale = Math.min(1, Math.max(0.72, availableHeight / surface.scrollHeight));
+      const availableHeight = 1062;
+      const scale = surface.scrollHeight > availableHeight ? Math.max(0.72, availableHeight / surface.scrollHeight) : 1;
       document.documentElement.style.setProperty("--print-scale", String(scale));
     };
     window.addEventListener("beforeprint", beforePrint);
@@ -257,8 +257,10 @@ export default function PlannerApp({ slug }) {
 }
 
 function PlannerTable({ monthData, onEdit, onCreate, canEdit }) {
+  const printRowCount = monthData.days.reduce((count, day) => count + Math.max(day.events.length, 1), 0);
+
   return (
-    <table className="planner-table">
+    <table className="planner-table" style={{ "--print-row-count": String(printRowCount) }}>
       <thead>
         <tr>
           <th>일</th>

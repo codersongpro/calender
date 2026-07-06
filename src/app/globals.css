@@ -642,6 +642,12 @@ select {
 }
 
 @media print {
+  :root {
+    --print-page-height: 281mm;
+    --print-title-height: 10mm;
+    --print-header-height: 7mm;
+  }
+
   body {
     background: #ffffff;
   }
@@ -662,13 +668,18 @@ select {
 
   .print-surface {
     margin: 0;
+    min-height: var(--print-page-height);
+    display: flex;
+    flex-direction: column;
     transform: scale(var(--print-scale));
     transform-origin: top left;
     width: calc(100% / var(--print-scale));
   }
 
   .print-title {
-    margin: 0 0 6px;
+    min-height: var(--print-title-height);
+    margin: 0;
+    flex: 0 0 auto;
   }
 
   .print-title h2 {
@@ -681,6 +692,8 @@ select {
 
   .planner-table {
     display: table;
+    flex: 1 1 auto;
+    height: calc(var(--print-page-height) - var(--print-title-height));
     font-size: 9px;
     line-height: 1.18;
     page-break-inside: avoid;
@@ -688,11 +701,16 @@ select {
 
   .planner-table th,
   .planner-table td {
-    padding: 3px 4px;
+    padding: 1mm 1.2mm;
   }
 
   .planner-table th {
+    height: var(--print-header-height);
     font-size: 10px;
+  }
+
+  .planner-table tbody tr {
+    height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
   }
 
   .date-cell::before {
