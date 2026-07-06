@@ -145,6 +145,16 @@ test("tenant update patches only include provided changes and hashed new passwor
   assert.equal(await verifyPassword("new-view", patch.viewPasswordHash), true);
 });
 
+test("tenant update patches preserve, set, and explicitly clear public data service keys", async () => {
+  assert.deepEqual(await buildTenantUpdatePatch({ publicDataServiceKey: "" }), {});
+  assert.deepEqual(await buildTenantUpdatePatch({ publicDataServiceKey: "  school-key  " }), {
+    publicDataServiceKey: "school-key",
+  });
+  assert.deepEqual(await buildTenantUpdatePatch({ clearPublicDataServiceKey: true }), {
+    publicDataServiceKey: "",
+  });
+});
+
 test("tenant list items redact secrets for the operator dashboard", () => {
   assert.deepEqual(
     tenantListItem({

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PasswordUnlock, StatusBar } from "./PlannerApp.jsx";
+import { GoogleServiceAccountGuide, PublicDataServiceKeyGuide } from "./SetupGuides.jsx";
 
 export default function SchoolAdminApp({ slug }) {
   const basePath = useMemo(() => `/api/schools/${encodeURIComponent(slug)}`, [slug]);
@@ -51,6 +52,15 @@ export default function SchoolAdminApp({ slug }) {
   async function saveSettings(event) {
     event.preventDefault();
     const input = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const publicDataServiceKey = String(input.publicDataServiceKey ?? "").trim();
+    const clearPublicDataServiceKey = input.clearPublicDataServiceKey === "true";
+    if (clearPublicDataServiceKey) {
+      input.clearPublicDataServiceKey = true;
+    } else {
+      delete input.clearPublicDataServiceKey;
+      if (publicDataServiceKey) input.publicDataServiceKey = publicDataServiceKey;
+      else delete input.publicDataServiceKey;
+    }
     const data = await request(`${basePath}/config`, {
       method: "PATCH",
       body: input,
@@ -163,12 +173,31 @@ export default function SchoolAdminApp({ slug }) {
           </label>
           <label>
             <span>공공데이터포털 서비스키</span>
-            <input name="publicDataServiceKey" />
+            <input
+              name="publicDataServiceKey"
+              type="password"
+              autoComplete="off"
+              placeholder={config.publicDataServiceKeyStored ? "새 키 입력 시 교체" : "서비스키 입력"}
+            />
+            <small className="field-help">비워 두면 현재 학교별 키 또는 환경변수 기본값을 유지합니다.</small>
           </label>
+          <PublicDataServiceKeyGuide />
+          {config.publicDataServiceKeyStored ? (
+            <label className="checkbox-label wide">
+              <input type="checkbox" name="clearPublicDataServiceKey" value="true" />
+              <span>저장된 학교별 서비스키 삭제</span>
+            </label>
+          ) : null}
+          <div className="service-box wide">
+            <span>공공데이터포털 키 상태</span>
+            <strong>{publicDataServiceKeyStatus(config.publicDataServiceKeySource)}</strong>
+            <small>학교별 키가 없으면 서버의 PUBLIC_DATA_SERVICE_KEY 환경변수를 사용합니다.</small>
+          </div>
           <div className="service-box wide">
             <span>서비스 계정</span>
             <strong>{config.serviceAccountEmail || "환경변수 설정 필요"}</strong>
           </div>
+          <GoogleServiceAccountGuide />
           <button type="submit" className="primary-button wide">
             설정 저장
           </button>
@@ -232,4 +261,10 @@ export default function SchoolAdminApp({ slug }) {
 function currentSchoolYear() {
   const now = new Date();
   return now.getMonth() + 1 >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+function publicDataServiceKeyStatus(source) {
+  if (source === "school") return "학교별 서비스키 저장됨";
+  if (source === "environment") return "환경변수 PUBLIC_DATA_SERVICE_KEY 사용 중";
+  return "서비스키 미설정";
 }

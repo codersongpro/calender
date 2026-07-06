@@ -27,7 +27,31 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END P
 GOOGLE_SERVICE_ACCOUNT_JSON={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}
 ```
 
-## 4. 메인 운영자 비밀번호
+처음 설정하는 순서는 다음과 같습니다.
+
+1. Google Cloud Console에서 프로젝트를 만들거나 선택합니다.
+2. Google Sheets API를 사용 설정합니다.
+3. IAM 및 관리자 → 서비스 계정에서 새 서비스 계정을 만듭니다.
+4. 해당 서비스 계정의 키 추가 메뉴에서 JSON 키를 내려받습니다.
+5. JSON의 `client_email`을 각 학교 스프레드시트 공유 창에 `편집자`로 추가합니다.
+6. Vercel 환경변수에 `GOOGLE_SERVICE_ACCOUNT_JSON` 또는 `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`를 저장하고 재배포합니다.
+
+## 4. 공공데이터포털 서비스키
+
+공휴일 자동 갱신은 공공데이터포털의 한국천문연구원 특일 정보 API 서비스키를 사용합니다.
+
+1. 공공데이터포털(data.go.kr)에 로그인합니다.
+2. 한국천문연구원 특일 정보 API를 활용신청합니다.
+3. 마이페이지의 Open API 활용 내역에서 일반 인증키를 복사합니다.
+4. 모든 학교가 같은 키를 쓰면 Vercel 환경변수에 기본값을 넣습니다.
+
+```bash
+PUBLIC_DATA_SERVICE_KEY=공공데이터포털서비스키
+```
+
+학교별로 다른 키를 써야 하면 `/admin`에서 학교 생성 시 입력하거나 `/s/학교코드/admin`에서 저장합니다. 학교별 저장 키가 있으면 `PUBLIC_DATA_SERVICE_KEY`보다 우선합니다.
+
+## 5. 메인 운영자 비밀번호
 
 기본 방식은 배포 후 `/admin`에서 처음 사용할 메인 운영자 비밀번호를 설정하는 것입니다. 설정한 값은 Neon Postgres의 `app_settings` 테이블에 PBKDF2 해시로 저장됩니다.
 
@@ -55,7 +79,7 @@ PUBLIC_DATA_SERVICE_KEY=공공데이터포털서비스키
 
 `OPERATOR_SESSION_SECRET`이 없으면 `APP_SECRET`을 운영자 세션 서명에 사용합니다.
 
-## 5. 운영
+## 6. 운영
 
 1. 배포 후 `/admin`에 접속합니다.
 2. 처음 접속했다면 메인 운영자 비밀번호를 설정하고, 이후에는 그 비밀번호로 로그인합니다.

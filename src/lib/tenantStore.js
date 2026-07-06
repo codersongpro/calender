@@ -217,8 +217,11 @@ export async function buildTenantUpdatePatch(input) {
   if (String(input.viewPassword ?? "")) patch.viewPasswordHash = await hashPassword(String(input.viewPassword));
   if (String(input.editPassword ?? "")) patch.editPasswordHash = await hashPassword(String(input.editPassword));
   if (String(input.adminPassword ?? "")) patch.adminPasswordHash = await hashPassword(String(input.adminPassword));
-  if (input.publicDataServiceKey !== undefined) {
-    patch.publicDataServiceKey = String(input.publicDataServiceKey ?? "").trim();
+  const publicDataServiceKey = String(input.publicDataServiceKey ?? "").trim();
+  if (input.clearPublicDataServiceKey === true || input.clearPublicDataServiceKey === "true") {
+    patch.publicDataServiceKey = "";
+  } else if (publicDataServiceKey) {
+    patch.publicDataServiceKey = publicDataServiceKey;
   }
   return patch;
 }

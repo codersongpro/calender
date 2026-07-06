@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { PasswordUnlock, StatusBar } from "./PlannerApp.jsx";
+import { GoogleServiceAccountGuide, PublicDataServiceKeyGuide } from "./SetupGuides.jsx";
 
 export default function OperatorAdminApp() {
   const [operatorReady, setOperatorReady] = useState(null);
@@ -255,6 +256,7 @@ export default function OperatorAdminApp() {
             <span>빈 스프레드시트 주소</span>
             <input name="spreadsheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." />
           </label>
+          <GoogleServiceAccountGuide />
           <label>
             <span>조회 비밀번호</span>
             <input name="viewPassword" type="password" required minLength={4} />
@@ -269,8 +271,10 @@ export default function OperatorAdminApp() {
           </label>
           <label>
             <span>공공데이터포털 서비스키</span>
-            <input name="publicDataServiceKey" />
+            <input name="publicDataServiceKey" type="password" autoComplete="off" placeholder="선택 입력" />
+            <small className="field-help">비워 두면 PUBLIC_DATA_SERVICE_KEY 환경변수를 기본값으로 사용합니다.</small>
           </label>
+          <PublicDataServiceKeyGuide saveLabel="학교 사이트 생성" refreshText="학교 관리 화면의 공휴일 갱신" />
           <button type="submit" className="primary-button wide">
             학교 사이트 생성
           </button>

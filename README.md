@@ -9,6 +9,33 @@ npm install
 npm run dev
 ```
 
+로컬에서 실행할 때는 `.env.local`에 환경변수를 넣고 개발 서버를 다시 시작합니다. Vercel 배포에서는 Project Settings → Environment Variables에 같은 값을 넣은 뒤 재배포합니다.
+
+## 서비스키와 환경변수
+
+Google Spreadsheet를 읽고 쓰려면 Google 서비스 계정 환경변수가 필요합니다. Google Cloud에서 Sheets API를 사용 설정하고 서비스 계정 JSON 키를 만든 뒤, 아래 방식 중 하나로 넣습니다.
+
+```bash
+GOOGLE_SERVICE_ACCOUNT_JSON={"client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}
+```
+
+또는 JSON에서 값을 나누어 넣을 수 있습니다.
+
+```bash
+GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account-name@project-id.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+서비스 계정의 `client_email`은 각 학교 Google Spreadsheet에 `편집자`로 공유해야 합니다.
+
+공휴일 자동 갱신에는 공공데이터포털 서비스키가 필요합니다. 모든 학교가 같은 키를 쓰면 환경변수에 기본값을 넣습니다.
+
+```bash
+PUBLIC_DATA_SERVICE_KEY=공공데이터포털서비스키
+```
+
+학교별로 다른 키를 써야 하면 `/admin`에서 학교 생성 시 입력하거나 `/s/학교코드/admin`의 `공공데이터포털 서비스키` 입력란에 저장합니다. 학교별 저장 키가 있으면 `PUBLIC_DATA_SERVICE_KEY`보다 우선합니다.
+
 ## 운영 흐름
 
 1. 운영자는 `/admin`에서 처음 사용할 메인 운영자 비밀번호를 설정합니다.

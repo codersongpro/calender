@@ -8,6 +8,7 @@ import {
 import { getServiceAccountEmail } from "../../../../../lib/sheets.js";
 import { ensureInstitutionDatabase, syncSettingsSheet } from "../../../../../lib/sheetsDb.js";
 import { updateTenant } from "../../../../../lib/tenantStore.js";
+import { getPublicDataServiceKeyState } from "../../../../../lib/holidays.js";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,7 @@ export async function GET(request, context) {
         canEdit: payload.scope === "edit" || canAdmin,
         canAdmin,
         ...(canAdmin ? { spreadsheetId: tenant.spreadsheetId } : {}),
+        ...(canAdmin ? getPublicDataServiceKeyState(tenant) : {}),
         serviceAccountEmail: getServiceAccountEmail(),
       });
     } catch {
@@ -47,6 +49,7 @@ export async function PATCH(request, context) {
     return ok({
       orgName: tenant.orgName,
       slug: tenant.slug,
+      ...getPublicDataServiceKeyState(tenant),
       serviceAccountEmail: getServiceAccountEmail(),
     });
   } catch (error) {

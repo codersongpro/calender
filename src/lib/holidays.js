@@ -4,13 +4,14 @@ import { replaceAutoHolidays } from "./sheetsDb.js";
 const ENDPOINT = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getHoliDeInfo";
 
 export async function refreshSchoolYearHolidays(config, schoolYear) {
-  if (!config.publicDataServiceKey) {
-    throw new Error("공공데이터포털 서비스키가 필요합니다.");
+  const serviceKey = getPublicDataServiceKey(config);
+  if (!serviceKey) {
+    throw new Error("공공데이터포털 서비스키가 필요합니다. 학교 관리에서 서비스키를 저장하거나 PUBLIC_DATA_SERVICE_KEY 환경변수를 설정해 주세요.");
   }
 
   const requests = [];
-  for (let month = 3; month <= 12; month += 1) requests.push(fetchHolidayMonth(config, schoolYear, month));
-  for (let month = 1; month <= 2; month += 1) requests.push(fetchHolidayMonth(config, Number(schoolYear) + 1, month));
+  for (let month = 3; month <= 12; month += 1) requests.push(fetchHolidayMonth(serviceKey, schoolYear, month));
+  for (let month = 1; month <= 2; month += 1) requests.push(fetchHolidayMonth(serviceKey, Number(schoolYear) + 1, month));
 
   const holidays = (await Promise.all(requests))
     .flat()
@@ -30,9 +31,24 @@ export async function refreshSchoolYearHolidays(config, schoolYear) {
   return replaceAutoHolidays(config, holidays);
 }
 
-async function fetchHolidayMonth(config, year, month) {
+export function getPublicDataServiceKey(config = {}) {
+  return String(config.publicDataServiceKey || process.env.PUBLIC_DATA_SERVICE_KEY || "").trim();
+}
+
+export function getPublicDataServiceKeyState(config = {}) {
+  const schoolConfigured = Boolean(String(config.publicDataServiceKey ?? "").trim());
+  const environmentConfigured = Boolean(String(process.env.PUBLIC_DATA_SERVICE_KEY ?? "").trim());
+  return {
+    publicDataServiceKeyConfigured: schoolConfigured || environmentConfigured,
+    publicDataServiceKeyStored: schoolConfigured,
+    publicDataServiceKeyFromEnv: !schoolConfigured && environmentConfigured,
+    publicDataServiceKeySource: schoolConfigured ? "school" : environmentConfigured ? "environment" : "missing",
+  };
+}
+
+async function fetchHolidayMonth(serviceKey, year, month) {
   const params = new URLSearchParams({
-    ServiceKey: config.publicDataServiceKey,
+    ServiceKey: serviceKey,
     pageNo: "1",
     numOfRows: "50",
     solYear: String(year),
