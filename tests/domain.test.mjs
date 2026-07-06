@@ -6,6 +6,7 @@ import {
   calculateHolidayClusters,
   EVENT_CATEGORY_OPTIONS,
   getPrintRowCount,
+  getTimeOptions,
   getMonthOptions,
   getSchoolYearRange,
   parseLegacyRows,
@@ -197,4 +198,12 @@ test("print row count follows expanded event rows and blank days", () => {
     }),
     4,
   );
+});
+
+test("time options are generated in 10 minute increments for event entry", () => {
+  const options = getTimeOptions();
+
+  assert.equal(options.length, 144);
+  assert.deepEqual(options.slice(0, 4), ["00:00", "00:10", "00:20", "00:30"]);
+  assert.deepEqual(options.slice(-3), ["23:30", "23:40", "23:50"]);
 });

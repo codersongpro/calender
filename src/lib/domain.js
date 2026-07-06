@@ -221,6 +221,17 @@ export function getPrintRowCount(monthData) {
   return (monthData.days ?? []).reduce((count, day) => count + Math.max(day.events?.length ?? 0, 1), 0);
 }
 
+export function getTimeOptions(stepMinutes = 10) {
+  const step = Math.max(1, Number(stepMinutes) || 10);
+  const options = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += step) {
+    const hour = String(Math.floor(minutes / 60)).padStart(2, "0");
+    const minute = String(minutes % 60).padStart(2, "0");
+    options.push(`${hour}:${minute}`);
+  }
+  return options;
+}
+
 export function makeId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }

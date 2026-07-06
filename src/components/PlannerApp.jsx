@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getPrintRowCount } from "../lib/domain.js";
+import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getPrintRowCount, getTimeOptions } from "../lib/domain.js";
 
 const blankEvent = {
   date: "",
@@ -12,6 +12,8 @@ const blankEvent = {
   place: "",
   owner: "",
 };
+
+const TIME_OPTIONS = getTimeOptions();
 
 export default function PlannerApp({ slug }) {
   const basePath = useMemo(() => `/api/schools/${encodeURIComponent(slug)}`, [slug]);
@@ -403,7 +405,17 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           ) : null}
           <label>
             <span>시간</span>
-            <input value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })} placeholder="09:00~10:00" />
+            <input
+              list="time-option-list"
+              value={draft.time}
+              onChange={(event) => setDraft({ ...draft, time: event.target.value })}
+              placeholder="09:00 또는 직접입력"
+            />
+            <datalist id="time-option-list">
+              {TIME_OPTIONS.map((time) => (
+                <option key={time} value={time} />
+              ))}
+            </datalist>
           </label>
           <label>
             <span>담당자</span>
