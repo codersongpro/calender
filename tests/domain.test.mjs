@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildMonthCsv,
   calculateHolidayClusters,
+  EVENT_CATEGORY_OPTIONS,
   getMonthOptions,
   getSchoolYearRange,
   parseLegacyRows,
@@ -140,5 +142,45 @@ test("spreadsheet id is extracted from urls and raw ids", () => {
   assert.equal(
     extractSpreadsheetId("1uvYR2gcjBBVU-YOn7bVpREp7RXeU-D6L52tvCFsJ-2Y"),
     "1uvYR2gcjBBVU-YOn7bVpREp7RXeU-D6L52tvCFsJ-2Y",
+  );
+});
+
+test("event category options include the fixed choices and direct input marker", () => {
+  assert.deepEqual(EVENT_CATEGORY_OPTIONS, ["출장", "행사", "협의", "심사", "연수", "(직접입력)"]);
+});
+
+test("month data can be exported as CSV including blank days and event rows", () => {
+  const csv = buildMonthCsv({
+    config: { orgName: "학성초등학교" },
+    year: 2026,
+    month: 7,
+    days: [
+      {
+        date: "2026-07-01",
+        day: 1,
+        weekday: "수",
+        events: [
+          { category: "행사", time: "09:00", title: "개학식", place: "강당", owner: "교무" },
+        ],
+      },
+      {
+        date: "2026-07-02",
+        day: 2,
+        weekday: "목",
+        events: [],
+      },
+    ],
+  });
+
+  assert.equal(
+    csv,
+    [
+      "기관명,학년도,월",
+      "학성초등학교,2026,7",
+      "",
+      "날짜,요일,구분,시간,일정 제목,장소,담당자",
+      "2026-07-01,수,행사,09:00,개학식,강당,교무",
+      "2026-07-02,목,,,,,",
+    ].join("\r\n"),
   );
 });

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { buildMonthCsv, EVENT_CATEGORY_OPTIONS } from "../lib/domain.js";
+
 const blankEvent = {
   date: "",
   category: "행사",
@@ -138,6 +140,20 @@ export default function PlannerApp({ slug }) {
     }
   }
 
+  function downloadMonthCsv() {
+    if (!monthData) return;
+    const csv = `\ufeff${buildMonthCsv({ ...monthData, schoolYear })}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${safeFilename(monthData.config?.orgName || config.orgName)}-${schoolYear}-${String(monthData.month).padStart(2, "0")}월-행사계획.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   if (!config) return <div className="loading">불러오는 중</div>;
 
   if (!config.exists) {
@@ -187,6 +203,9 @@ export default function PlannerApp({ slug }) {
         <div className="top-actions">
           <button type="button" className="ghost-button" onClick={() => window.print()}>
             인쇄
+          </button>
+          <button type="button" className="ghost-button" onClick={downloadMonthCsv} disabled={!monthData}>
+            다운로드
           </button>
           {config.canEdit ? (
             <button type="button" className="primary-button" onClick={() => beginCreate()}>
@@ -345,6 +364,9 @@ function MobileCards({ monthData, onEdit, onCreate, canEdit }) {
 }
 
 function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit, onDelete, onClose }) {
+  const categoryChoice = EVENT_CATEGORY_OPTIONS.includes(draft.category) ? draft.category : "(직접입력)";
+  const directCategory = categoryChoice === "(직접입력)";
+
   return (
     <div className="dialog-backdrop">
       <section className="dialog">
@@ -361,13 +383,36 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           </label>
           <label>
             <span>구분</span>
-            <input list="category-list" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} />
-            <datalist id="category-list">
-              {categories.map((category) => (
-                <option key={category.name} value={category.name} />
+            <select
+              value={categoryChoice}
+              onChange={(event) => {
+                const nextCategory = event.target.value;
+                setDraft({ ...draft, category: nextCategory === "(직접입력)" ? "" : nextCategory });
+              }}
+            >
+              {EVENT_CATEGORY_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
               ))}
-            </datalist>
+            </select>
           </label>
+          {directCategory ? (
+            <label>
+              <span>구분 직접입력</span>
+              <input
+                list="category-list"
+                value={draft.category}
+                onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+                placeholder="구분 입력"
+              />
+              <datalist id="category-list">
+                {categories.map((category) => (
+                  <option key={category.name} value={category.name} />
+                ))}
+              </datalist>
+            </label>
+          ) : null}
           <label>
             <span>시간</span>
             <input value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })} placeholder="09:00~10:00" />
@@ -462,4 +507,11 @@ function dayClass(day) {
 function currentSchoolYear() {
   const now = new Date();
   return now.getMonth() + 1 >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+function safeFilename(value) {
+  return String(value ?? "월별행사계획")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ") || "월별행사계획";
 }

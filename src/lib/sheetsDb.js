@@ -22,6 +22,9 @@ import {
   updateValues,
 } from "./sheets.js";
 
+const DATA_CACHE_TTL_MS = 30_000;
+const dataCache = new Map();
+
 export async function ensureInstitutionDatabase(config) {
   return ensureDatabaseSheets(config.spreadsheetId);
 }
@@ -41,34 +44,23 @@ export async function syncSettingsSheet(config) {
 export async function listEvents(config) {
   await ensureInstitutionDatabase(config);
   const rows = await getValues(config.spreadsheetId, "'Events'!A:K");
-  return rowsToObjects(rows, EVENT_HEADERS);
+  return eventsFromRows(rows);
 }
 
 export async function listCategories(config) {
   await ensureInstitutionDatabase(config);
   const rows = await getValues(config.spreadsheetId, "'Categories'!A:D");
-  return rowsToObjects(rows, CATEGORY_HEADERS).map((category) => ({
-    ...category,
-    active: category.active !== "FALSE",
-  }));
+  return categoriesFromRows(rows);
 }
 
 export async function listHolidays(config) {
   await ensureInstitutionDatabase(config);
   const rows = await getValues(config.spreadsheetId, "'Holidays'!A:I");
-  return rowsToObjects(rows, HOLIDAY_HEADERS).map((holiday) => ({
-    ...holiday,
-    isHoliday: holiday.isHoliday !== "FALSE",
-    enabled: holiday.enabled !== "FALSE",
-  }));
+  return holidaysFromRows(rows);
 }
 
-export async function getMonthData(config, { year, month }) {
-  const [events, holidays, categories] = await Promise.all([
-    listEvents(config),
-    listHolidays(config),
-    listCategories(config),
-  ]);
+export async function getMonthData(config, { year, month }, options = {}) {
+  const { events, holidays, categories } = await getInstitutionData(config, options);
   const bounds = getMonthBounds(year, month);
   const monthEvents = events.filter((event) => event.date >= bounds.start && event.date <= bounds.end);
   const monthHolidays = holidays.filter((holiday) => holiday.date >= bounds.start && holiday.date <= bounds.end);
@@ -99,6 +91,7 @@ export async function createEvent(config, input) {
   };
   await appendValues(config.spreadsheetId, "'Events'!A2:K", [objectToRow(event, EVENT_HEADERS)]);
   await logEdit(config, "create", event.id, "", event);
+  clearInstitutionDataCache(config.spreadsheetId);
   return event;
 }
 
@@ -112,6 +105,7 @@ export async function updateEvent(config, id, input) {
   };
   await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:K${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);
   await logEdit(config, "update", id, object, updated);
+  clearInstitutionDataCache(config.spreadsheetId);
   return updated;
 }
 
@@ -121,6 +115,7 @@ export async function deleteEvent(config, id) {
   const deleted = { ...object, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:K${rowNumber}`, [objectToRow(deleted, EVENT_HEADERS)]);
   await logEdit(config, "delete", id, object, deleted);
+  clearInstitutionDataCache(config.spreadsheetId);
   return deleted;
 }
 
@@ -149,6 +144,7 @@ export async function saveHoliday(config, input) {
     await appendValues(config.spreadsheetId, "'Holidays'!A2:I", [objectToRow(holiday, HOLIDAY_HEADERS)]);
   }
   await logEdit(config, "holiday", holiday.id, "", holiday);
+  clearInstitutionDataCache(config.spreadsheetId);
   return holiday;
 }
 
@@ -164,6 +160,7 @@ export async function replaceAutoHolidays(config, holidays) {
   await clearValues(config.spreadsheetId, "'Holidays'!A:I");
   await updateValues(config.spreadsheetId, `'Holidays'!A1:I${nextRows.length}`, nextRows);
   await logEdit(config, "refresh-holidays", "", "", { count: holidays.length });
+  clearInstitutionDataCache(config.spreadsheetId);
   return holidays;
 }
 
@@ -191,7 +188,54 @@ export async function importLegacyMonthlyTabs(config, schoolYear) {
     );
   }
   await logEdit(config, "import-legacy", "", "", { count: imported.length, warnings });
+  clearInstitutionDataCache(config.spreadsheetId);
   return { count: imported.length, sheets: importableSheets, warnings };
+}
+
+export function clearInstitutionDataCache(spreadsheetId) {
+  dataCache.delete(String(spreadsheetId ?? ""));
+}
+
+async function getInstitutionData(config, options = {}) {
+  const spreadsheetId = config.spreadsheetId;
+  const now = options.now?.() ?? Date.now();
+  const cacheTtlMs = options.cacheTtlMs ?? DATA_CACHE_TTL_MS;
+  const cached = dataCache.get(spreadsheetId);
+  if (cacheTtlMs > 0 && cached && now - cached.createdAt < cacheTtlMs) return cached.data;
+
+  const readValues = options.getValues ?? getValues;
+  const [eventRows, holidayRows, categoryRows] = await Promise.all([
+    readValues(spreadsheetId, "'Events'!A:K"),
+    readValues(spreadsheetId, "'Holidays'!A:I"),
+    readValues(spreadsheetId, "'Categories'!A:D"),
+  ]);
+
+  const data = {
+    events: eventsFromRows(eventRows),
+    holidays: holidaysFromRows(holidayRows),
+    categories: categoriesFromRows(categoryRows),
+  };
+  if (cacheTtlMs > 0) dataCache.set(spreadsheetId, { createdAt: now, data });
+  return data;
+}
+
+function eventsFromRows(rows) {
+  return rowsToObjects(rows, EVENT_HEADERS);
+}
+
+function categoriesFromRows(rows) {
+  return rowsToObjects(rows, CATEGORY_HEADERS).map((category) => ({
+    ...category,
+    active: category.active !== "FALSE",
+  }));
+}
+
+function holidaysFromRows(rows) {
+  return rowsToObjects(rows, HOLIDAY_HEADERS).map((holiday) => ({
+    ...holiday,
+    isHoliday: holiday.isHoliday !== "FALSE",
+    enabled: holiday.enabled !== "FALSE",
+  }));
 }
 
 async function logEdit(config, action, eventId, before, after) {

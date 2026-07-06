@@ -16,6 +16,8 @@ export const EVENT_HEADERS = [
 
 export const CATEGORY_HEADERS = ["name", "color", "sortOrder", "active"];
 
+export const EVENT_CATEGORY_OPTIONS = ["출장", "행사", "협의", "심사", "연수", "(직접입력)"];
+
 export const HOLIDAY_HEADERS = [
   "id",
   "date",
@@ -32,13 +34,14 @@ export const SETTINGS_HEADERS = ["key", "value", "updatedAt"];
 export const EDIT_LOG_HEADERS = ["timestamp", "action", "eventId", "before", "after"];
 
 export const DEFAULT_CATEGORIES = [
-  ["행사", "#2563eb", 10, "TRUE"],
-  ["출장", "#0f766e", 20, "TRUE"],
+  ["출장", "#0f766e", 10, "TRUE"],
+  ["행사", "#2563eb", 20, "TRUE"],
   ["협의", "#7c3aed", 30, "TRUE"],
-  ["연수", "#c2410c", 40, "TRUE"],
-  ["교육", "#047857", 50, "TRUE"],
-  ["회의", "#be123c", 60, "TRUE"],
-  ["체험", "#ca8a04", 70, "TRUE"],
+  ["심사", "#be123c", 40, "TRUE"],
+  ["연수", "#c2410c", 50, "TRUE"],
+  ["교육", "#047857", 60, "TRUE"],
+  ["회의", "#ca8a04", 70, "TRUE"],
+  ["체험", "#6d28d9", 80, "TRUE"],
 ];
 
 export function toDateKey(date) {
@@ -188,6 +191,32 @@ export function objectToRow(object, headers) {
   return headers.map((header) => object[header] ?? "");
 }
 
+export function buildMonthCsv(monthData) {
+  const rows = [
+    ["기관명", "학년도", "월"],
+    [monthData.config?.orgName ?? "", monthData.year, monthData.month],
+    [],
+    ["날짜", "요일", "구분", "시간", "일정 제목", "장소", "담당자"],
+  ];
+
+  for (const day of monthData.days ?? []) {
+    const events = day.events?.length ? day.events : [null];
+    for (const event of events) {
+      rows.push([
+        day.date,
+        day.weekday,
+        event?.category ?? "",
+        event?.time ?? "",
+        event?.title ?? "",
+        event?.place ?? "",
+        event?.owner ?? "",
+      ]);
+    }
+  }
+
+  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
 export function makeId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -268,6 +297,11 @@ function splitLines(value, keepBlankLeading = false) {
   if (!keepBlankLeading) return lines;
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines;
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function pickLegacyLine(lines, index) {
