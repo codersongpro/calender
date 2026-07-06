@@ -134,9 +134,26 @@ async function sheetsRequest(url, options = {}) {
 
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`Google Sheets API 오류: ${response.status} ${message}`);
+    throw new Error(formatGoogleSheetsApiError(response.status, message));
   }
   return response.json();
+}
+
+export function formatGoogleSheetsApiError(status, body) {
+  const parsed = parseGoogleApiError(body);
+  const reason = parsed?.details?.find((detail) => detail?.["@type"] === "type.googleapis.com/google.rpc.ErrorInfo")?.reason;
+  const metadata = parsed?.details?.find((detail) => detail?.["@type"] === "type.googleapis.com/google.rpc.ErrorInfo")?.metadata ?? {};
+
+  if (status === 403 && reason === "SERVICE_DISABLED") {
+    const project = metadata.consumer?.replace(/^projects\//, "") || metadata.containerInfo || "";
+    const activationUrl = metadata.activationUrl || "https://console.cloud.google.com/apis/library/sheets.googleapis.com";
+    return [
+      `Google Sheets API가${project ? ` Google Cloud 프로젝트 ${project}에서` : ""} 비활성화되어 있습니다.`,
+      `아래 주소에서 Google Sheets API를 사용 설정한 뒤 몇 분 기다렸다가 다시 점검해 주세요: ${activationUrl}`,
+    ].join(" ");
+  }
+
+  return `Google Sheets API 오류: ${status} ${parsed?.message || String(body ?? "")}`;
 }
 
 async function getAccessToken() {
@@ -220,6 +237,15 @@ function getServiceAccountCredentials(required) {
     );
   }
   return null;
+}
+
+function parseGoogleApiError(body) {
+  try {
+    const parsed = JSON.parse(String(body ?? ""));
+    return parsed?.error ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function normalizePrivateKey(value) {
