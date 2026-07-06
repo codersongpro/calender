@@ -6,6 +6,7 @@ export function PublicDataServiceKeyGuide({ saveLabel = "설정 저장", refresh
         <li>공공데이터포털(data.go.kr)에 로그인한 뒤 한국천문연구원 특일 정보 API를 활용신청합니다.</li>
         <li>마이페이지의 Open API 활용 내역에서 인증키를 확인합니다.</li>
         <li>일반 인증키를 복사해 이 입력란에 붙여넣고 {saveLabel}을 누릅니다.</li>
+        <li>가능하면 Decoding 인증키를 사용합니다. Encoding 인증키를 넣어도 앱이 보정하지만, 403이 계속 나면 Decoding 키로 다시 저장해 주세요.</li>
         <li>모든 학교가 같은 키를 쓰면 서버 환경변수 <code>PUBLIC_DATA_SERVICE_KEY</code>에 넣고, 학교별 키가 필요할 때만 이 칸에 저장합니다.</li>
         <li>저장 후 {refreshText}을 눌러 해당 학년도 공휴일을 가져옵니다.</li>
       </ol>

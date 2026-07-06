@@ -32,7 +32,7 @@ export async function refreshSchoolYearHolidays(config, schoolYear) {
 }
 
 export function getPublicDataServiceKey(config = {}) {
-  return String(config.publicDataServiceKey || process.env.PUBLIC_DATA_SERVICE_KEY || "").trim();
+  return normalizePublicDataServiceKey(config.publicDataServiceKey || process.env.PUBLIC_DATA_SERVICE_KEY || "");
 }
 
 export function getPublicDataServiceKeyState(config = {}) {
@@ -58,9 +58,38 @@ async function fetchHolidayMonth(serviceKey, year, month) {
   const response = await fetch(`${ENDPOINT}?${params.toString()}`);
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`공휴일 API 호출 실패: ${response.status} ${message}`);
+    throw new Error(formatPublicDataApiError(response.status, message));
   }
   return parseHolidayXml(await response.text());
+}
+
+export function normalizePublicDataServiceKey(value) {
+  let key = String(value ?? "").trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+  if (/%[0-9a-f]{2}/i.test(key)) {
+    try {
+      key = decodeURIComponent(key);
+    } catch {
+      // Keep the original key if a user-entered percent sign is not a valid escape.
+    }
+  }
+  return key;
+}
+
+export function formatPublicDataApiError(status, body) {
+  const message = String(body ?? "");
+  if (status === 403) {
+    return [
+      "공공데이터포털 공휴일 API가 서비스키를 거부했습니다.",
+      "한국천문연구원 특일 정보 API 활용신청이 승인되었는지, 만료되거나 다른 계정의 키가 아닌지 확인해 주세요.",
+      "포털에서 Encoding 인증키를 복사했다면 Decoding 인증키를 넣거나 키를 다시 저장해 주세요.",
+    ].join(" ");
+  }
+
+  const apiMessage = tagValue(message, "returnAuthMsg") || tagValue(message, "errMsg") || tagValue(message, "message");
+  return `공휴일 API 호출 실패: ${status}${apiMessage ? ` ${apiMessage}` : ` ${message}`}`;
 }
 
 function parseHolidayXml(xml) {
