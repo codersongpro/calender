@@ -24,6 +24,7 @@ export function GoogleServiceAccountGuide() {
         <li>Vercel Project Settings의 Environment Variables에 <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>으로 JSON 전체를 넣습니다.</li>
         <li>분리해서 넣고 싶다면 <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>에는 <code>client_email</code>, <code>GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY</code>에는 <code>private_key</code> 값을 넣습니다.</li>
         <li>로컬 실행은 <code>.env.local</code>에 같은 값을 넣고 개발 서버를 다시 시작합니다. Vercel은 환경변수 저장 후 재배포해야 적용됩니다.</li>
+        <li><code>DECODER routines::unsupported</code> 오류가 나면 <code>private_key</code> 대신 <code>private_key_id</code>를 넣었거나 줄바꿈 <code>\n</code>이 깨진 경우가 많습니다.</li>
       </ol>
     </details>
   );

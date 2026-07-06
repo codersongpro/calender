@@ -28,6 +28,8 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END P
 
 서비스 계정의 `client_email`은 각 학교 Google Spreadsheet에 `편집자`로 공유해야 합니다.
 
+`error:1E08010C:DECODER routines::unsupported` 오류가 나면 서비스 계정 `private_key` 값이 잘못 들어간 것입니다. `private_key_id`가 아니라 `-----BEGIN PRIVATE KEY-----`로 시작하는 `private_key` 전체를 넣었는지 확인하고, 줄바꿈 `\n`이 깨지지 않게 복사해 주세요.
+
 공휴일 자동 갱신에는 공공데이터포털 서비스키가 필요합니다. 모든 학교가 같은 키를 쓰면 환경변수에 기본값을 넣습니다.
 
 ```bash

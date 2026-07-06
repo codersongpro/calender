@@ -36,6 +36,8 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"client_email":"...","private_key":"-----BEGIN PRIV
 5. JSON의 `client_email`을 각 학교 스프레드시트 공유 창에 `편집자`로 추가합니다.
 6. Vercel 환경변수에 `GOOGLE_SERVICE_ACCOUNT_JSON` 또는 `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`를 저장하고 재배포합니다.
 
+`error:1E08010C:DECODER routines::unsupported` 오류가 나면 `private_key` 값이 PEM 형식으로 들어가지 않은 상태입니다. JSON의 `private_key_id`가 아니라 `private_key` 전체를 넣었는지, `-----BEGIN PRIVATE KEY-----`와 `-----END PRIVATE KEY-----`가 포함되어 있는지, 줄바꿈 `\n`이 깨지지 않았는지 확인합니다.
+
 ## 4. 공공데이터포털 서비스키
 
 공휴일 자동 갱신은 공공데이터포털의 한국천문연구원 특일 정보 API 서비스키를 사용합니다.

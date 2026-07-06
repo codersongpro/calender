@@ -186,7 +186,16 @@ function signJwt(header, claim, privateKey) {
   const signer = createSign("RSA-SHA256");
   signer.update(input);
   signer.end();
-  return `${input}.${signer.sign(privateKey).toString("base64url")}`;
+  try {
+    return `${input}.${signer.sign(privateKey).toString("base64url")}`;
+  } catch (error) {
+    if (error?.code === "ERR_OSSL_UNSUPPORTED" || String(error?.message ?? "").includes("DECODER routines::unsupported")) {
+      throw new Error(
+        "Google 서비스 계정 private_key 형식을 읽지 못했습니다. JSON의 private_key 전체를 넣었는지, private_key_id를 넣지 않았는지, 줄바꿈(\\n)이 깨지지 않았는지 확인해 주세요.",
+      );
+    }
+    throw error;
+  }
 }
 
 function getServiceAccountCredentials(required) {
@@ -213,8 +222,18 @@ function getServiceAccountCredentials(required) {
   return null;
 }
 
-function normalizePrivateKey(value) {
-  return String(value ?? "").replace(/\\n/g, "\n");
+export function normalizePrivateKey(value) {
+  let key = String(value ?? "").trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+  key = key.replace(/\\n/g, "\n").trim();
+  if (!key.includes("-----BEGIN PRIVATE KEY-----") || !key.includes("-----END PRIVATE KEY-----")) {
+    throw new Error(
+      "Google 서비스 계정 private_key 값이 올바르지 않습니다. JSON 파일의 private_key 전체를 넣어야 하며 private_key_id 값을 넣으면 안 됩니다.",
+    );
+  }
+  return key;
 }
 
 export function quoteSheet(title) {
