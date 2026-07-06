@@ -9,7 +9,6 @@
   --danger: #b42318;
   --warm: #fff3cf;
   --holiday: #ffe4e6;
-  --print-scale: 1;
 }
 
 * {
@@ -643,13 +642,17 @@ select {
 
 @media print {
   :root {
-    --print-page-height: 281mm;
+    --print-page-height: 100vh;
     --print-title-height: 10mm;
-    --print-header-height: 7mm;
+    --print-header-height: 6mm;
   }
 
+  html,
   body {
     background: #ffffff;
+    width: 100%;
+    height: auto;
+    overflow: hidden;
   }
 
   .topbar,
@@ -668,12 +671,17 @@ select {
 
   .print-surface {
     margin: 0;
-    min-height: var(--print-page-height);
+    height: var(--print-page-height);
+    max-height: var(--print-page-height);
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    transform: scale(var(--print-scale));
-    transform-origin: top left;
-    width: calc(100% / var(--print-scale));
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+    transform: none;
+    width: 100%;
   }
 
   .print-title {
@@ -694,14 +702,17 @@ select {
     display: table;
     flex: 1 1 auto;
     height: calc(var(--print-page-height) - var(--print-title-height));
+    max-height: calc(var(--print-page-height) - var(--print-title-height));
     font-size: 9px;
     line-height: 1.18;
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   .planner-table th,
   .planner-table td {
-    padding: 1mm 1.2mm;
+    overflow: hidden;
+    padding: 0.6mm 1mm;
   }
 
   .planner-table th {
@@ -711,6 +722,8 @@ select {
 
   .planner-table tbody tr {
     height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .date-cell::before {
@@ -720,7 +733,9 @@ select {
 
   .date-cell .date-button,
   .title-cell .event-title {
-    display: inline !important;
+    display: block !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .holiday-line span,
@@ -731,7 +746,6 @@ select {
   }
 
   @page {
-    size: A4 portrait;
-    margin: 8mm;
+    margin: 6mm;
   }
 }

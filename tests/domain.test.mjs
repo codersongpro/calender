@@ -5,6 +5,7 @@ import {
   buildMonthCsv,
   calculateHolidayClusters,
   EVENT_CATEGORY_OPTIONS,
+  getPrintRowCount,
   getMonthOptions,
   getSchoolYearRange,
   parseLegacyRows,
@@ -182,5 +183,18 @@ test("month data can be exported as CSV including blank days and event rows", ()
       "2026-07-01,수,행사,09:00,개학식,강당,교무",
       "2026-07-02,목,,,,,",
     ].join("\r\n"),
+  );
+});
+
+test("print row count follows expanded event rows and blank days", () => {
+  assert.equal(
+    getPrintRowCount({
+      days: [
+        { events: [] },
+        { events: [{ id: "evt_1" }, { id: "evt_2" }] },
+        { events: [{ id: "evt_3" }] },
+      ],
+    }),
+    4,
   );
 });

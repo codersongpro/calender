@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { buildMonthCsv, EVENT_CATEGORY_OPTIONS } from "../lib/domain.js";
+import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getPrintRowCount } from "../lib/domain.js";
 
 const blankEvent = {
   date: "",
@@ -32,18 +32,6 @@ export default function PlannerApp({ slug }) {
   useEffect(() => {
     if (config?.authenticated) loadMonth();
   }, [config?.authenticated, schoolYear, month]);
-
-  useEffect(() => {
-    const beforePrint = () => {
-      const surface = document.querySelector(".print-surface");
-      if (!surface) return;
-      const availableHeight = 1062;
-      const scale = surface.scrollHeight > availableHeight ? Math.max(0.72, availableHeight / surface.scrollHeight) : 1;
-      document.documentElement.style.setProperty("--print-scale", String(scale));
-    };
-    window.addEventListener("beforeprint", beforePrint);
-    return () => window.removeEventListener("beforeprint", beforePrint);
-  }, []);
 
   async function loadConfig() {
     await request(`${basePath}/config`, { setData: setConfig, label: "설정을 불러왔습니다.", quiet: true });
@@ -276,7 +264,7 @@ export default function PlannerApp({ slug }) {
 }
 
 function PlannerTable({ monthData, onEdit, onCreate, canEdit }) {
-  const printRowCount = monthData.days.reduce((count, day) => count + Math.max(day.events.length, 1), 0);
+  const printRowCount = getPrintRowCount(monthData);
 
   return (
     <table className="planner-table" style={{ "--print-row-count": String(printRowCount) }}>

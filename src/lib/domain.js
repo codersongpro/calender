@@ -217,6 +217,10 @@ export function buildMonthCsv(monthData) {
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
+export function getPrintRowCount(monthData) {
+  return (monthData.days ?? []).reduce((count, day) => count + Math.max(day.events?.length ?? 0, 1), 0);
+}
+
 export function makeId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
