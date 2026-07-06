@@ -32,6 +32,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .loading,
 .setup-page {
   min-height: 100svh;
@@ -549,23 +554,95 @@ select {
 }
 
 @media (max-width: 760px) {
+  .loading,
+  .setup-page {
+    align-items: start;
+    padding: 14px;
+  }
+
+  .setup-page {
+    place-items: start center;
+  }
+
+  .setup-panel {
+    padding: 18px;
+  }
+
+  h1 {
+    font-size: clamp(24px, 7vw, 34px);
+    overflow-wrap: anywhere;
+  }
+
+  h2 {
+    font-size: clamp(20px, 5vw, 26px);
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    gap: 14px;
+    padding: 16px;
   }
 
-  .top-actions,
+  .top-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
   .top-actions button,
   .top-actions a,
   .control-band,
   .control-band label,
   .inline-unlock,
-  .inline-unlock input {
+  .inline-unlock input,
+  .inline-unlock button {
     width: 100%;
   }
 
   .control-band {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .control-band .inline-unlock {
+    grid-column: 1 / -1;
+  }
+
+  .inline-unlock {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top-actions button,
+  .top-actions a,
+  .admin-actions button {
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  input,
+  select {
+    min-height: 44px;
+  }
+
+  .status {
+    margin: 10px 16px 0;
+  }
+
+  .print-surface {
+    margin: 14px 16px 36px;
+  }
+
+  .print-title {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin: 0 0 10px;
   }
 
   .planner-table {
@@ -574,14 +651,14 @@ select {
 
   .mobile-cards {
     display: grid;
-    gap: 10px;
+    gap: 8px;
   }
 
   .day-card {
     background: #ffffff;
     border: 1px solid var(--line);
     border-radius: 8px;
-    padding: 12px;
+    padding: 10px 12px;
   }
 
   .day-card header {
@@ -589,7 +666,7 @@ select {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .day-card header div {
@@ -599,14 +676,19 @@ select {
   }
 
   .day-card header strong {
-    font-size: 22px;
+    font-size: 20px;
+  }
+
+  .empty-day {
+    margin-top: 4px;
+    font-size: 13px;
   }
 
   .mobile-event {
     display: grid;
-    gap: 5px;
+    gap: 6px;
     width: 100%;
-    padding: 10px 0;
+    padding: 9px 0;
     border-top: 1px solid var(--line);
   }
 
@@ -621,22 +703,116 @@ select {
   .mobile-event small {
     color: var(--muted);
     font-style: normal;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-event strong {
+    font-size: 15px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .dialog-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    max-height: calc(100svh - 18px);
+    border-radius: 12px 12px 0 0;
+    padding: 16px;
+  }
+
+  .dialog > header {
+    margin-bottom: 14px;
   }
 
   .form-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dialog-actions {
+    position: sticky;
+    bottom: -16px;
+    align-items: stretch;
+    background: #ffffff;
+    padding-top: 10px;
+  }
+
+  .dialog-actions button {
+    flex: 1 1 0;
+  }
+
+  .dialog-actions .danger-button {
+    flex-basis: 100%;
+    margin-right: 0;
   }
 
   .operator-guide {
     grid-template-columns: 1fr;
+    padding: 14px 16px 0;
+  }
+
+  .operator-guide h2 {
+    font-size: 20px;
   }
 
   .operator-guide ol {
     grid-template-columns: 1fr;
   }
 
+  .operator-guide li {
+    padding: 10px;
+  }
+
   .admin-layout {
     grid-template-columns: 1fr;
+    padding: 14px 16px 36px;
+  }
+
+  .admin-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .admin-actions button {
+    width: 100%;
+  }
+
+  .tenant-table th,
+  .tenant-table td {
+    padding: 8px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .top-actions,
+  .admin-actions {
+    gap: 7px;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .danger-button,
+  .small-button,
+  .primary-link,
+  .secondary-link {
+    padding-inline: 9px;
+  }
+
+  .control-band {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 }
 
