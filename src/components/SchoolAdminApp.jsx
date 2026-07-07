@@ -191,6 +191,8 @@ export default function SchoolAdminApp({ slug }) {
         </div>
       </header>
 
+      <StatusBar status={status} error={error} />
+
       <section className="admin-layout">
         <form className="setup-panel form-grid" onSubmit={saveSettings}>
           <label>
@@ -353,7 +355,6 @@ export default function SchoolAdminApp({ slug }) {
           </form>
         </section>
       </section>
-      <StatusBar status={status} error={error} />
     </main>
   );
 }

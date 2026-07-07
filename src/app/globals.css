@@ -199,6 +199,14 @@ label {
   font-weight: 700;
 }
 
+.field-block {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .field-help {
   color: var(--muted);
   font-size: 12px;
@@ -416,6 +424,40 @@ input[type="file"] {
   grid-column: 1 / -1;
 }
 
+.time-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.time-input input {
+  border-radius: 6px 0 0 6px;
+}
+
+.time-stepper {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+}
+
+.time-stepper button {
+  width: 48px;
+  min-height: 21px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  background: #f8fafc;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.time-stepper button:first-child {
+  border-radius: 0 6px 0 0;
+}
+
+.time-stepper button:last-child {
+  border-top: 0;
+  border-radius: 0 0 6px 0;
+}
+
 .service-box {
   display: grid;
   gap: 6px;
@@ -489,6 +531,13 @@ input[type="file"] {
 
 .admin-page {
   min-height: 100svh;
+}
+
+.admin-page > .status {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  margin-top: 0;
 }
 
 .operator-guide {
@@ -894,9 +943,12 @@ input[type="file"] {
   }
 
   .print-title {
+    display: flex;
     min-height: var(--print-title-height);
     margin: 0;
     flex: 0 0 auto;
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   .print-title h2 {
@@ -934,6 +986,14 @@ input[type="file"] {
   .planner-table th {
     height: var(--print-header-height);
     font-size: clamp(7px, calc(var(--print-font-size) * 1.08), 11px);
+  }
+
+  .planner-table th,
+  .saturday-row td,
+  .sunday-row td,
+  .holiday-row td {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .planner-table tbody tr {

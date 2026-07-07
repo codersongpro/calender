@@ -431,15 +431,10 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
               </datalist>
             </label>
           ) : null}
-          <label>
+          <div className="field-block">
             <span>시간</span>
-            <input
-              type="time"
-              step="60"
-              value={draft.time}
-              onChange={(event) => setDraft({ ...draft, time: event.target.value })}
-            />
-          </label>
+            <TimeInput value={draft.time} onChange={(time) => setDraft({ ...draft, time })} />
+          </div>
           <label>
             <span>담당자</span>
             <input value={draft.owner} onChange={(event) => setDraft({ ...draft, owner: event.target.value })} />
@@ -469,6 +464,57 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
       </section>
     </div>
   );
+}
+
+function TimeInput({ value, onChange }) {
+  return (
+    <div className="time-input">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={value}
+        placeholder="09:00"
+        aria-label="시간(24시간)"
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onChange(normalizeClock(event.target.value))}
+      />
+      <div className="time-stepper" aria-label="10분 단위 시간 조절">
+        <button type="button" onClick={() => onChange(stepClock(value, 10))} aria-label="10분 올리기">
+          +10
+        </button>
+        <button type="button" onClick={() => onChange(stepClock(value, -10))} aria-label="10분 내리기">
+          -10
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function normalizeClock(value) {
+  const parsed = parseClock(value);
+  if (!parsed) return value;
+  return formatClock(parsed.hour, Math.round(parsed.minute / 10) * 10);
+}
+
+function stepClock(value, minutes) {
+  const parsed = parseClock(value) || { hour: 9, minute: 0 };
+  return formatClock(parsed.hour, Math.round(parsed.minute / 10) * 10 + minutes);
+}
+
+function parseClock(value) {
+  const match = String(value || "").trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return { hour, minute };
+}
+
+function formatClock(hour, minute) {
+  const totalMinutes = (hour * 60 + minute + 1440) % 1440;
+  const nextHour = Math.floor(totalMinutes / 60);
+  const nextMinute = totalMinutes % 60;
+  return `${String(nextHour).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`;
 }
 
 export function PasswordUnlock({ label, buttonLabel = "확인", onSubmit }) {

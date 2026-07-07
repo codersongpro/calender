@@ -13,7 +13,7 @@ export async function GET(request, context) {
     const selectedMonth = Number(params.get("month") || new Date().getMonth() + 1);
     const monthOption =
       getMonthOptions(schoolYear).find((item) => item.month === selectedMonth) ?? getMonthOptions(schoolYear)[0];
-    const data = await getMonthData(tenant, { year: monthOption.year, month: monthOption.month });
+    const data = await getMonthData(tenant, { year: monthOption.year, month: monthOption.month }, { cacheTtlMs: 0 });
     return ok({ schoolYear, monthOptions: getMonthOptions(schoolYear), ...data });
   } catch (error) {
     return fail(error);
