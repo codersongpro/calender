@@ -113,6 +113,7 @@ export default function SchoolAdminApp({ slug }) {
     });
     if (data) {
       event.currentTarget.reset();
+      notifyPlannerChanged(slug);
       const warningText = data.warnings?.length ? ` 검토 필요 ${data.warnings.length}건이 있습니다.` : "";
       setStatus(`엑셀 파일에서 ${data.count}개 일정을 가져왔습니다.${warningText}`);
     }
@@ -362,6 +363,18 @@ export default function SchoolAdminApp({ slug }) {
 function currentSchoolYear() {
   const now = new Date();
   return now.getMonth() + 1 >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
+function notifyPlannerChanged(slug) {
+  try {
+    window.localStorage.setItem(plannerChangedKey(slug), String(Date.now()));
+  } catch {
+    // 다른 탭 갱신 신호가 막혀도 업로드 저장은 그대로 유지합니다.
+  }
+}
+
+function plannerChangedKey(slug) {
+  return `planner-events-updated:${slug}`;
 }
 
 function publicDataServiceKeyStatus(source) {

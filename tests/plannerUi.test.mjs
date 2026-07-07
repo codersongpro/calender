@@ -64,6 +64,16 @@ test("month data route reads fresh sheet data so uploads appear immediately", as
   assert.match(source, /getMonthData\(tenant,\s*{ year: monthOption\.year, month: monthOption\.month },\s*{ cacheTtlMs: 0 }\)/);
 });
 
+test("workbook upload notifies open planner tabs to reload imported events", async () => {
+  const adminSource = await readFile(new URL("../src/components/SchoolAdminApp.jsx", import.meta.url), "utf8");
+  const plannerSource = await readFile(new URL("../src/components/PlannerApp.jsx", import.meta.url), "utf8");
+
+  assert.match(adminSource, /notifyPlannerChanged\(slug\)/);
+  assert.match(adminSource, /window\.localStorage\.setItem\(plannerChangedKey\(slug\), String\(Date\.now\(\)\)\)/);
+  assert.match(plannerSource, /window\.addEventListener\("storage", handlePlannerChanged\)/);
+  assert.match(plannerSource, /if \(event\.key === plannerChangedKey\(slug\)\) loadMonth\(\)/);
+});
+
 test("print pdf keeps table title and weekend shading", async () => {
   const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
 

@@ -35,6 +35,15 @@ export default function PlannerApp({ slug }) {
     if (config?.authenticated) loadMonth();
   }, [config?.authenticated, schoolYear, month]);
 
+  useEffect(() => {
+    if (!config?.authenticated) return;
+    function handlePlannerChanged(event) {
+      if (event.key === plannerChangedKey(slug)) loadMonth();
+    }
+    window.addEventListener("storage", handlePlannerChanged);
+    return () => window.removeEventListener("storage", handlePlannerChanged);
+  }, [config?.authenticated, slug, schoolYear, month]);
+
   async function loadConfig() {
     await request(`${basePath}/config`, { setData: setConfig, label: "설정을 불러왔습니다.", quiet: true });
   }
@@ -583,4 +592,8 @@ function safeFilename(value) {
     .trim()
     .replace(/[\\/:*?"<>|]+/g, "-")
     .replace(/\s+/g, " ") || "월별행사계획";
+}
+
+function plannerChangedKey(slug) {
+  return `planner-events-updated:${slug}`;
 }
