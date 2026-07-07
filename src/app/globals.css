@@ -140,6 +140,17 @@ h2 {
   margin-right: auto;
 }
 
+.dialog-actions.delete-confirm .danger-button {
+  margin-right: 0;
+}
+
+.delete-confirm-text {
+  flex: 1 1 auto;
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 13px;
+}
+
 .small-button {
   min-height: 32px;
   padding: 0 10px;

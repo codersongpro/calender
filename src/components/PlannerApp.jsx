@@ -427,6 +427,7 @@ function MobileCards({ monthData, onEdit, onCreate, onDismissReview, canEdit }) 
 function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit, onDelete, onClose }) {
   const categoryChoice = EVENT_CATEGORY_OPTIONS.includes(draft.category) ? draft.category : "(직접입력)";
   const directCategory = categoryChoice === "(직접입력)";
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="dialog-backdrop">
@@ -507,19 +508,31 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
             <span>장소</span>
             <input value={draft.place} onChange={(event) => setDraft({ ...draft, place: event.target.value })} />
           </label>
-          <div className="dialog-actions wide">
-            {canDelete ? (
-              <button type="button" className="danger-button" onClick={onDelete}>
-                삭제
+          {confirmDelete ? (
+            <div className="dialog-actions wide delete-confirm">
+              <span className="delete-confirm-text">정말 삭제하시겠습니까? 되돌릴 수 없습니다.</span>
+              <button type="button" className="ghost-button" onClick={() => setConfirmDelete(false)}>
+                취소
               </button>
-            ) : null}
-            <button type="button" className="ghost-button" onClick={onClose}>
-              취소
-            </button>
-            <button type="submit" className="primary-button">
-              저장
-            </button>
-          </div>
+              <button type="button" className="danger-button" onClick={onDelete}>
+                삭제 확인
+              </button>
+            </div>
+          ) : (
+            <div className="dialog-actions wide">
+              {canDelete ? (
+                <button type="button" className="danger-button" onClick={() => setConfirmDelete(true)}>
+                  삭제
+                </button>
+              ) : null}
+              <button type="button" className="ghost-button" onClick={onClose}>
+                취소
+              </button>
+              <button type="submit" className="primary-button">
+                저장
+              </button>
+            </div>
+          )}
         </form>
       </section>
     </div>
