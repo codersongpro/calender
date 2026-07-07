@@ -295,10 +295,10 @@ export function parseLegacyRows(rows, { schoolYear, tabTitle }) {
     const titles = splitLines(row[4]);
     if (titles.length === 0) continue;
 
-    const categoryLines = splitLines(row[2]);
+    const categoryLines = splitLines(row[2], true);
     const timeLines = splitLines(row[3], true);
-    const placeLines = splitLines(row[5]);
-    const ownerLines = splitLines(row[6]);
+    const placeLines = splitLines(row[5], true);
+    const ownerLines = splitLines(row[6], true);
     const lineSources = [categoryLines, timeLines, placeLines, ownerLines];
     const reviewNeeded = lineSources.some((lines) => lines.length > 1 && lines.length !== titles.length);
 
@@ -309,6 +309,7 @@ export function parseLegacyRows(rows, { schoolYear, tabTitle }) {
       events.push({
         id: makeId("evt"),
         date,
+        endDate: inferEndDateFromTitle(title, date),
         category: pickLegacyLine(categoryLines, index),
         time: pickLegacyLine(timeLines, index),
         title,
@@ -344,6 +345,22 @@ function pickLegacyLine(lines, index) {
   if (lines.length === 0) return "";
   if (lines.length === 1) return lines[0];
   return lines[index] ?? "";
+}
+
+function inferEndDateFromTitle(title, dateKey) {
+  const match = String(title ?? "").match(/(?:^|[^\d])(\d{1,2})[./](\d{1,2})\.?\s*~\s*(?:(\d{1,2})[./])?(\d{1,2})\.?/);
+  if (!match) return "";
+
+  const date = parseDateKey(dateKey);
+  const startMonth = Number(match[1]);
+  const startDay = Number(match[2]);
+  if (startMonth !== date.getMonth() + 1 || startDay !== date.getDate()) return "";
+
+  const endMonth = Number(match[3] || startMonth);
+  const endDay = Number(match[4]);
+  const endYear = endMonth < startMonth ? date.getFullYear() + 1 : date.getFullYear();
+  const endDate = toDateKey(new Date(endYear, endMonth - 1, endDay));
+  return endDate > dateKey ? endDate : "";
 }
 
 export function buildMonthView({ year, month, events, holidays }) {

@@ -209,6 +209,105 @@ test("legacy monthly continuation rows keep the previous day", () => {
   );
 });
 
+test("legacy monthly rows preserve blank alignment lines inside multi-line cells", () => {
+  const rows = [
+    ["일", "요일", "구분", "시 간", "일 정 제 목", "장 소", "담당자"],
+    [
+      "7",
+      "화",
+      "교육",
+      "",
+      "K-스마트교육(5학년)\n나무공예체험(2학년)\n나무공예체험(1학년)\n자기성장프로그램 사기충전 3기(사제동행) 인솔 및 지도",
+      "컴퓨터실\n각 교실\n\n청풍마음쉼터",
+      "이정훈\n나상연\n\n학교장",
+    ],
+  ];
+
+  const result = parseLegacyRows(rows, { schoolYear: 2026, tabTitle: "7월" });
+
+  assert.deepEqual(
+    result.events.map((event) => ({
+      title: event.title,
+      place: event.place,
+      owner: event.owner,
+    })),
+    [
+      { title: "K-스마트교육(5학년)", place: "컴퓨터실", owner: "이정훈" },
+      { title: "나무공예체험(2학년)", place: "각 교실", owner: "나상연" },
+      { title: "나무공예체험(1학년)", place: "", owner: "" },
+      {
+        title: "자기성장프로그램 사기충전 3기(사제동행) 인솔 및 지도",
+        place: "청풍마음쉼터",
+        owner: "학교장",
+      },
+    ],
+  );
+});
+
+test("legacy monthly rows preserve blank category lines", () => {
+  const rows = [
+    ["일", "요일", "구분", "시 간", "일 정 제 목", "장 소", "담당자"],
+    [
+      "17",
+      "금",
+      "교육\n\n출장",
+      "9:00~10:25\n10:30~11:55\n9:30~",
+      "꿈의 책버스 유치원 및 1학년 교육\n꿈의 책버스 2학년 교육\n2026. 학교관리자 성희롱,성폭력,성매매 예방 교육 연수",
+      "꿈의 책버스\n(본교 수돗가근처)\n충북교육청",
+      "이경숙\n\n문유리",
+    ],
+  ];
+
+  const result = parseLegacyRows(rows, { schoolYear: 2026, tabTitle: "4월" });
+
+  assert.deepEqual(
+    result.events.map((event) => ({
+      category: event.category,
+      owner: event.owner,
+    })),
+    [
+      { category: "교육", owner: "이경숙" },
+      { category: "", owner: "" },
+      { category: "출장", owner: "문유리" },
+    ],
+  );
+});
+
+test("legacy monthly rows infer event end dates from date ranges in titles", () => {
+  const rows = [
+    ["일", "요일", "구분", "시 간", "일 정 제 목", "장 소", "담당자"],
+    ["24", "금", "", "", "7.24~8.23(여름방학)\n여름방학 영어캠프(7.24~7.28)", "도서실\n각 학년교실", "배나미\n김다래"],
+    ["22", "월", "교육", "", "여름 Green Week(6.22.~7.3.)\n6.22~23(환경지속가능발전교육)", "", ""],
+    ["30", "월", "행사", "", "학급임원선거(2~6)\n학교문화책임규약 선서(3/30~4/3)", "", ""],
+  ];
+
+  const july = parseLegacyRows([rows[0], rows[1]], { schoolYear: 2026, tabTitle: "7월" });
+  const june = parseLegacyRows([rows[0], rows[2]], { schoolYear: 2026, tabTitle: "6월" });
+  const march = parseLegacyRows([rows[0], rows[3]], { schoolYear: 2026, tabTitle: "3월" });
+
+  assert.deepEqual(
+    july.events.map((event) => ({ title: event.title, endDate: event.endDate })),
+    [
+      { title: "7.24~8.23(여름방학)", endDate: "2026-08-23" },
+      { title: "여름방학 영어캠프(7.24~7.28)", endDate: "2026-07-28" },
+    ],
+  );
+  assert.deepEqual(
+    june.events.map((event) => ({ title: event.title, endDate: event.endDate })),
+    [
+      { title: "여름 Green Week(6.22.~7.3.)", endDate: "2026-07-03" },
+      { title: "6.22~23(환경지속가능발전교육)", endDate: "2026-06-23" },
+    ],
+  );
+  assert.deepEqual(
+    march.events.map((event) => ({ title: event.title, endDate: event.endDate })),
+    [
+      { title: "학급임원선거(2~6)", endDate: "" },
+      { title: "학교문화책임규약 선서(3/30~4/3)", endDate: "2026-04-03" },
+    ],
+  );
+});
+
 test("password hashes verify the right secret and reject the wrong one", async () => {
   const hash = await hashPassword("school-secret");
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getPrintRowCount } from "../lib/domain.js";
+import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getMonthOptions, getPrintRowCount } from "../lib/domain.js";
 
 const blankEvent = {
   date: "",
@@ -25,6 +25,7 @@ export default function PlannerApp({ slug }) {
   const [eventDraft, setEventDraft] = useState(blankEvent);
   const [editingEventId, setEditingEventId] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
+  const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
 
   useEffect(() => {
     loadConfig();
@@ -86,7 +87,7 @@ export default function PlannerApp({ slug }) {
   function beginCreate(date = "") {
     if (!config?.canEdit) return;
     setEditingEventId("");
-    setEventDraft({ ...blankEvent, date });
+    setEventDraft({ ...blankEvent, date, endDate: date });
     setShowEventForm(true);
   }
 
@@ -232,7 +233,7 @@ export default function PlannerApp({ slug }) {
         <label>
           <span>월</span>
           <select value={month} onChange={(event) => setMonth(Number(event.target.value))}>
-            {(monthData?.monthOptions || []).map((option) => (
+            {monthOptions.map((option) => (
               <option key={option.key} value={option.month}>
                 {option.label}
               </option>
@@ -379,7 +380,15 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
         <form onSubmit={onSubmit} className="form-grid">
           <label>
             <span>시작일</span>
-            <input type="date" value={draft.date} required onChange={(event) => setDraft({ ...draft, date: event.target.value })} />
+            <input
+              type="date"
+              value={draft.date}
+              required
+              onChange={(event) => {
+                const date = event.target.value;
+                setDraft({ ...draft, date, endDate: draft.endDate || date });
+              }}
+            />
           </label>
           <label>
             <span>종료일(선택)</span>

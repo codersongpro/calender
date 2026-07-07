@@ -4,6 +4,8 @@ import {
   EDIT_LOG_HEADERS,
   EVENT_HEADERS,
   getMonthBounds,
+  getMonthOptions,
+  getSchoolYearRange,
   getYearMonthFromLegacyTab,
   HOLIDAY_HEADERS,
   isItemInRange,
@@ -25,6 +27,8 @@ import {
 
 const DATA_CACHE_TTL_MS = 30_000;
 const dataCache = new Map();
+const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter((header) => header !== "endDate");
+const LEGACY_HOLIDAY_HEADERS = HOLIDAY_HEADERS.filter((header) => header !== "endDate");
 
 export async function ensureInstitutionDatabase(config) {
   return ensureDatabaseSheets(config.spreadsheetId);
@@ -99,7 +103,7 @@ export async function createEvent(config, input) {
 
 export async function updateEvent(config, id, input) {
   const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
-  const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id);
+  const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id, LEGACY_EVENT_HEADERS, isLegacyEventRow);
   const updated = {
     ...object,
     ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder"].map((key) => [key, input[key] ?? object[key] ?? ""])),
@@ -113,12 +117,32 @@ export async function updateEvent(config, id, input) {
 
 export async function deleteEvent(config, id) {
   const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
-  const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id);
+  const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id, LEGACY_EVENT_HEADERS, isLegacyEventRow);
   const deleted = { ...object, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:L${rowNumber}`, [objectToRow(deleted, EVENT_HEADERS)]);
   await logEdit(config, "delete", id, object, deleted);
   clearInstitutionDataCache(config.spreadsheetId);
   return deleted;
+}
+
+export async function clearEventsInRange(config, input, deps = {}) {
+  const readValues = deps.getValues ?? getValues;
+  const clearRows = deps.clearValues ?? clearValues;
+  const writeRows = deps.updateValues ?? updateValues;
+  const writeLog = deps.logEdit ?? logEdit;
+  const clearCache = deps.clearInstitutionDataCache ?? clearInstitutionDataCache;
+  const bounds = getClearBounds(input);
+  const rows = await readValues(config.spreadsheetId, "'Events'!A:L");
+  const events = eventsFromRows(rows);
+  const remaining = events.filter((event) => !event.date || !isItemInRange(event, bounds.start, bounds.end));
+  const removedCount = events.length - remaining.length;
+  const nextRows = [EVENT_HEADERS, ...remaining.map((event) => objectToRow(event, EVENT_HEADERS))];
+
+  await clearRows(config.spreadsheetId, "'Events'!A:L");
+  await writeRows(config.spreadsheetId, `'Events'!A1:L${nextRows.length}`, nextRows);
+  await writeLog(config, input.scope === "year" ? "clear-year" : "clear-month", "", "", { ...bounds, count: removedCount });
+  clearCache(config.spreadsheetId);
+  return { count: removedCount, ...bounds };
 }
 
 export async function saveHoliday(config, input) {
@@ -153,7 +177,7 @@ export async function saveHoliday(config, input) {
 
 export async function replaceAutoHolidays(config, holidays) {
   const existingRows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
-  const existing = rowsToObjects(existingRows, HOLIDAY_HEADERS);
+  const existing = holidaysFromRows(existingRows);
   const adminRows = existing.filter((holiday) => holiday.source === "admin");
   const nextRows = [
     HOLIDAY_HEADERS,
@@ -241,7 +265,7 @@ async function getInstitutionData(config, options = {}) {
 }
 
 function eventsFromRows(rows) {
-  return rowsToObjects(rows, EVENT_HEADERS);
+  return rowsToObjectsWithLegacyRows(rows, EVENT_HEADERS, LEGACY_EVENT_HEADERS, isLegacyEventRow);
 }
 
 function categoriesFromRows(rows) {
@@ -252,11 +276,51 @@ function categoriesFromRows(rows) {
 }
 
 function holidaysFromRows(rows) {
-  return rowsToObjects(rows, HOLIDAY_HEADERS).map((holiday) => ({
+  return rowsToObjectsWithLegacyRows(rows, HOLIDAY_HEADERS, LEGACY_HOLIDAY_HEADERS, isLegacyHolidayRow).map((holiday) => ({
     ...holiday,
     isHoliday: holiday.isHoliday !== "FALSE",
     enabled: holiday.enabled !== "FALSE",
   }));
+}
+
+function rowsToObjectsWithLegacyRows(rows, headers, legacyHeaders, isLegacyRow) {
+  return rows
+    .slice(1)
+    .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
+    .map((row) => rowToObject(row, headers, isLegacyRow(row) ? legacyHeaders : headers));
+}
+
+function rowToObject(row, headers, sourceHeaders = headers) {
+  const values = Object.fromEntries(sourceHeaders.map((header, index) => [header, String(row[index] ?? "").trim()]));
+  return Object.fromEntries(headers.map((header) => [header, values[header] ?? ""]));
+}
+
+function isLegacyEventRow(row) {
+  return row.length === LEGACY_EVENT_HEADERS.length && (isFilledNonDate(row[2]) || looksLikeTime(row[3]));
+}
+
+function isLegacyHolidayRow(row) {
+  return row.length === LEGACY_HOLIDAY_HEADERS.length && isFilledNonDate(row[2]);
+}
+
+function isFilledNonDate(value) {
+  const text = String(value ?? "").trim();
+  return text !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(text);
+}
+
+function looksLikeTime(value) {
+  return /^\d{1,2}:\d{2}/.test(String(value ?? "").trim());
+}
+
+function getClearBounds(input) {
+  const schoolYear = Number(input?.schoolYear);
+  if (!Number.isInteger(schoolYear)) throw new Error("학년도를 입력해 주세요.");
+  if (input?.scope === "year") return getSchoolYearRange(schoolYear);
+
+  const month = Number(input?.month);
+  const option = getMonthOptions(schoolYear).find((item) => item.month === month);
+  if (!option) throw new Error("월을 선택해 주세요.");
+  return getMonthBounds(option.year, option.month);
 }
 
 async function logEdit(config, action, eventId, before, after) {
@@ -274,12 +338,12 @@ async function logEdit(config, action, eventId, before, after) {
   ]);
 }
 
-function findRowById(rows, headers, id) {
+function findRowById(rows, headers, id, legacyHeaders = headers, isLegacyRow = () => false) {
   const rowIndex = rows.slice(1).findIndex((row) => row[0] === id);
   if (rowIndex < 0) throw new Error("행사를 찾을 수 없습니다.");
   const row = rows[rowIndex + 1];
   return {
     rowNumber: rowIndex + 2,
-    object: Object.fromEntries(headers.map((header, index) => [header, String(row[index] ?? "").trim()])),
+    object: rowToObject(row, headers, isLegacyRow(row) ? legacyHeaders : headers),
   };
 }

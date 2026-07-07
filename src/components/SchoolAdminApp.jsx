@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { getMonthOptions } from "../lib/domain.js";
 import { PasswordUnlock, StatusBar } from "./PlannerApp.jsx";
 import { GoogleServiceAccountGuide, PublicDataServiceKeyGuide } from "./SetupGuides.jsx";
 
@@ -9,9 +10,11 @@ export default function SchoolAdminApp({ slug }) {
   const basePath = useMemo(() => `/api/schools/${encodeURIComponent(slug)}`, [slug]);
   const [config, setConfig] = useState(null);
   const [schoolYear, setSchoolYear] = useState(currentSchoolYear());
+  const [clearMonth, setClearMonth] = useState(new Date().getMonth() + 1);
   const [holiday, setHoliday] = useState({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const monthOptions = getMonthOptions(schoolYear);
 
   useEffect(() => {
     loadConfig();
@@ -123,6 +126,16 @@ export default function SchoolAdminApp({ slug }) {
       label: "휴일을 저장했습니다.",
     });
     if (data) setHoliday({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
+  }
+
+  async function clearEvents(scope) {
+    const target = scope === "year" ? `${schoolYear}학년도 전체` : `${schoolYear}학년도 ${clearMonth}월`;
+    if (!window.confirm(`${target} 행사를 모두 삭제할까요?`)) return;
+    await request(`${basePath}/events/clear`, {
+      method: "POST",
+      body: { scope, schoolYear, month: clearMonth },
+      label: `${target} 행사를 클리어했습니다.`,
+    });
   }
 
   if (!config) return <div className="loading">불러오는 중</div>;
@@ -260,6 +273,27 @@ export default function SchoolAdminApp({ slug }) {
             </div>
           </div>
 
+          <div className="form-grid">
+            <label>
+              <span>클리어할 월</span>
+              <select value={clearMonth} onChange={(event) => setClearMonth(Number(event.target.value))}>
+                {monthOptions.map((option) => (
+                  <option key={option.key} value={option.month}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="admin-actions wide">
+              <button type="button" className="danger-button" onClick={() => clearEvents("month")}>
+                월별 행사 클리어
+              </button>
+              <button type="button" className="danger-button" onClick={() => clearEvents("year")}>
+                학년도 행사 클리어
+              </button>
+            </div>
+          </div>
+
           <form className="form-grid" onSubmit={importWorkbook}>
             <label className="wide">
               <span>월별 행사계획 엑셀 업로드</span>
@@ -277,7 +311,15 @@ export default function SchoolAdminApp({ slug }) {
           <form className="form-grid" onSubmit={saveHoliday}>
             <label>
               <span>휴일 날짜</span>
-              <input type="date" required value={holiday.date} onChange={(event) => setHoliday({ ...holiday, date: event.target.value })} />
+              <input
+                type="date"
+                required
+                value={holiday.date}
+                onChange={(event) => {
+                  const date = event.target.value;
+                  setHoliday({ ...holiday, date, endDate: holiday.endDate || date });
+                }}
+              />
             </label>
             <label>
               <span>종료일</span>

@@ -19,3 +19,13 @@ test("print table cells clamp overflowing content so every date row can fit", as
   assert.match(printCss, /\.event-title\s*{[^}]*white-space:\s*nowrap;/s);
   assert.match(printCss, /\.holiday-line\s*{[^}]*white-space:\s*nowrap;/s);
 });
+
+test("print font size scales from the available row height", async () => {
+  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const printCss = css.slice(css.indexOf("@media print"));
+
+  assert.match(printCss, /--print-font-size:\s*clamp\(6px,\s*calc\(var\(--print-row-height\)\s*\*\s*0\.42\),\s*12px\);/);
+  assert.match(printCss, /\.planner-table\s*{[^}]*font-size:\s*var\(--print-font-size\);/s);
+  assert.match(printCss, /\.category-pill\s*{[^}]*font-size:\s*inherit;/s);
+  assert.doesNotMatch(printCss, /\.planner-table\s*{[^}]*font-size:\s*7\.5px;/s);
+});

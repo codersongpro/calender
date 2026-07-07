@@ -853,6 +853,7 @@ input[type="file"] {
     --print-title-height: 7mm;
     --print-header-height: 5mm;
     --print-row-height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
+    --print-font-size: clamp(6px, calc(var(--print-row-height) * 0.42), 12px);
   }
 
   html,
@@ -911,7 +912,7 @@ input[type="file"] {
     flex: 1 1 auto;
     height: calc(var(--print-page-height) - var(--print-title-height));
     max-height: calc(var(--print-page-height) - var(--print-title-height));
-    font-size: 7.5px;
+    font-size: var(--print-font-size);
     line-height: 1.05;
     page-break-inside: avoid;
     break-inside: avoid;
@@ -932,7 +933,7 @@ input[type="file"] {
 
   .planner-table th {
     height: var(--print-header-height);
-    font-size: 8px;
+    font-size: clamp(7px, calc(var(--print-font-size) * 1.08), 11px);
   }
 
   .planner-table tbody tr {
@@ -968,7 +969,7 @@ input[type="file"] {
   .category-pill {
     min-height: 0;
     padding: 0 3px;
-    font-size: 7px;
+    font-size: inherit;
     line-height: 1.05;
   }
 
