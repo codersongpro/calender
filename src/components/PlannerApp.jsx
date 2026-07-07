@@ -19,6 +19,7 @@ const blankEvent = {
   title: "",
   place: "",
   owner: "",
+  memo: "",
 };
 
 export default function PlannerApp({ slug }) {
@@ -36,6 +37,7 @@ export default function PlannerApp({ slug }) {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [viewingMemoEvent, setViewingMemoEvent] = useState(null);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
   const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
 
@@ -193,6 +195,7 @@ export default function PlannerApp({ slug }) {
       place: event.place,
       owner: event.owner,
       sortOrder: event.sortOrder,
+      memo: event.memo || "",
     });
     setShowEventForm(true);
   }
@@ -382,6 +385,7 @@ export default function PlannerApp({ slug }) {
                 onEdit={beginEdit}
                 onCreate={beginCreate}
                 onDismissReview={dismissReview}
+                onShowMemo={setViewingMemoEvent}
                 canEdit={Boolean(config.canEdit)}
               />
             </section>
@@ -391,6 +395,7 @@ export default function PlannerApp({ slug }) {
             onEdit={beginEdit}
             onCreate={beginCreate}
             onDismissReview={dismissReview}
+            onShowMemo={setViewingMemoEvent}
             canEdit={Boolean(config.canEdit)}
           />
         </>
@@ -412,7 +417,41 @@ export default function PlannerApp({ slug }) {
       ) : null}
 
       {showInstallHelp ? <InstallHelpDialog onClose={() => setShowInstallHelp(false)} /> : null}
+
+      {viewingMemoEvent ? <MemoDialog event={viewingMemoEvent} onClose={() => setViewingMemoEvent(null)} /> : null}
     </main>
+  );
+}
+
+function MemoDialog({ event, onClose }) {
+  const memo = String(event.memo ?? "");
+  const isLink = /^https?:\/\//i.test(memo.trim());
+
+  return (
+    <div className="dialog-backdrop">
+      <section className="dialog">
+        <header>
+          <h2>{event.title}</h2>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="닫기">
+            x
+          </button>
+        </header>
+        {isLink ? (
+          <p className="memo-text">
+            <a href={memo.trim()} target="_blank" rel="noopener noreferrer">
+              {memo.trim()}
+            </a>
+          </p>
+        ) : (
+          <p className="memo-text">{memo}</p>
+        )}
+        <div className="dialog-actions wide">
+          <button type="button" className="primary-button" onClick={onClose}>
+            확인
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -457,7 +496,7 @@ function InstallHelpDialog({ onClose }) {
   );
 }
 
-function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, canEdit }) {
+function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, onShowMemo, canEdit }) {
   const printRowCount = getRowCountForDays(days);
 
   return (
@@ -498,10 +537,15 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, can
               <td className="title-cell">
                 {index === 0 ? <HolidayLine day={day} /> : null}
                 {event ? (
-                  <button type="button" className="event-title" onClick={() => canEdit && onEdit(event)}>
+                  <button
+                    type="button"
+                    className="event-title"
+                    onClick={() => (canEdit ? onEdit(event) : event.memo && onShowMemo(event))}
+                  >
                     {normalizeBoolean(event.reviewNeeded) ? (
                       <ReviewBadge event={event} canEdit={canEdit} onDismiss={onDismissReview} />
                     ) : null}
+                    {event.memo ? <span className="memo-badge">memo</span> : null}
                     {event.title}
                   </button>
                 ) : null}
@@ -516,7 +560,7 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, can
   );
 }
 
-function MobileCards({ monthData, onEdit, onCreate, onDismissReview, canEdit }) {
+function MobileCards({ monthData, onEdit, onCreate, onDismissReview, onShowMemo, canEdit }) {
   return (
     <div className="mobile-cards">
       {monthData.days.map((day) => (
@@ -535,13 +579,19 @@ function MobileCards({ monthData, onEdit, onCreate, onDismissReview, canEdit }) 
           <HolidayLine day={day} />
           {day.events.length ? (
             day.events.map((event) => (
-              <button key={event.id} type="button" className="mobile-event" onClick={() => canEdit && onEdit(event)}>
+              <button
+                key={event.id}
+                type="button"
+                className="mobile-event"
+                onClick={() => (canEdit ? onEdit(event) : event.memo && onShowMemo(event))}
+              >
                 <span>
                   <CategoryPill value={event.category} categories={monthData.categories} />
                   {event.time ? <em>{event.time}</em> : null}
                   {normalizeBoolean(event.reviewNeeded) ? (
                     <ReviewBadge event={event} canEdit={canEdit} onDismiss={onDismissReview} />
                   ) : null}
+                  {event.memo ? <span className="memo-badge">memo</span> : null}
                 </span>
                 <strong>{event.title}</strong>
                 <small>{[event.place, event.owner].filter(Boolean).join(" · ")}</small>
@@ -639,6 +689,16 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           <label className="wide">
             <span>장소</span>
             <input value={draft.place} onChange={(event) => setDraft({ ...draft, place: event.target.value })} />
+          </label>
+          <label className="wide">
+            <span>메모 / 링크</span>
+            <textarea
+              className="memo-input"
+              rows={3}
+              value={draft.memo || ""}
+              placeholder="담당자만 참고할 메모나 관련 사이트 링크를 입력하세요. 표에는 보이지 않고, 일정을 눌러야 볼 수 있습니다."
+              onChange={(event) => setDraft({ ...draft, memo: event.target.value })}
+            />
           </label>
           {confirmDelete ? (
             <div className="dialog-actions wide delete-confirm">

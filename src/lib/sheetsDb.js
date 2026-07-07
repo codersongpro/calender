@@ -29,7 +29,9 @@ import {
 
 const DATA_CACHE_TTL_MS = 30_000;
 const dataCache = new Map();
-const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter((header) => header !== "endDate" && header !== "reviewNeeded" && header !== "importBatchId");
+const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter(
+  (header) => header !== "endDate" && header !== "reviewNeeded" && header !== "importBatchId" && header !== "memo",
+);
 const LEGACY_HOLIDAY_HEADERS = HOLIDAY_HEADERS.filter((header) => header !== "endDate");
 const EVENTS_LAST_COLUMN = columnLetter(EVENT_HEADERS.length);
 const EVENTS_RANGE_ALL = `'Events'!A:${EVENTS_LAST_COLUMN}`;
@@ -100,6 +102,7 @@ export async function createEvent(config, input) {
     deletedAt: "",
     reviewNeeded: "",
     importBatchId: "",
+    memo: String(input.memo ?? ""),
   };
   await appendValues(config.spreadsheetId, `'Events'!A2:${EVENTS_LAST_COLUMN}`, [objectToRow(event, EVENT_HEADERS)]);
   await logEdit(config, "create", event.id, "", event);
@@ -112,7 +115,7 @@ export async function updateEvent(config, id, input) {
   const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id, LEGACY_EVENT_HEADERS, isLegacyEventRow);
   const updated = {
     ...object,
-    ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "reviewNeeded"].map((key) => [key, input[key] ?? object[key] ?? ""])),
+    ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "reviewNeeded", "memo"].map((key) => [key, input[key] ?? object[key] ?? ""])),
     updatedAt: new Date().toISOString(),
   };
   await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:${EVENTS_LAST_COLUMN}${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);

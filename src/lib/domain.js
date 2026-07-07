@@ -15,6 +15,7 @@ export const EVENT_HEADERS = [
   "deletedAt",
   "reviewNeeded",
   "importBatchId",
+  "memo",
 ];
 
 export const CATEGORY_HEADERS = ["name", "color", "sortOrder", "active"];

@@ -250,6 +250,17 @@ select {
   min-width: 0;
 }
 
+.memo-input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 9px 11px;
+  min-width: 0;
+  font: inherit;
+  resize: vertical;
+}
+
 input[type="file"] {
   height: auto;
   padding-block: 9px;
@@ -429,6 +440,34 @@ input[type="file"] {
 .review-badge.dismissable:focus-visible {
   background: #ffedd5;
   border-color: #fdba74;
+}
+
+.memo-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.memo-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  line-height: 1.5;
+  margin: 0 0 18px;
+}
+
+.memo-text a {
+  color: var(--accent-strong);
 }
 
 .saturday-row td,
@@ -1061,7 +1100,8 @@ input[type="file"] {
   .dialog-backdrop,
   .date-button,
   .event-title,
-  .review-badge {
+  .review-badge,
+  .memo-badge {
     display: none !important;
   }
 

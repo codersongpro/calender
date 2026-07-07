@@ -103,7 +103,7 @@ test("ensureDatabaseSheets grows an existing sheet's column count before syncing
     (req) => req.updateSheetProperties?.properties?.sheetId === 1,
   );
   assert.ok(growEvents, "expected the Events sheet's column count to be grown");
-  assert.equal(growEvents.updateSheetProperties.properties.gridProperties.columnCount, 14);
+  assert.equal(growEvents.updateSheetProperties.properties.gridProperties.columnCount, 15);
 
   const growOthers = batchUpdateCall.batchUpdateBody.requests.filter(
     (req) => req.updateSheetProperties && req.updateSheetProperties.properties.sheetId !== 1,

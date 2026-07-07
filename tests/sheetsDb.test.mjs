@@ -12,7 +12,7 @@ test("month loading reads each data sheet once without re-validating sheet schem
       cacheTtlMs: 0,
       getValues: async (_spreadsheetId, range) => {
         calls.push(range);
-        if (range === "'Events'!A:N") {
+        if (range === "'Events'!A:O") {
           return [
             ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
             ["evt_1", "2026-07-01", "", "행사", "", "월례회", "회의실", "교무", "1", "", "", ""],
@@ -32,7 +32,7 @@ test("month loading reads each data sheet once without re-validating sheet schem
     },
   );
 
-  assert.deepEqual(calls, ["'Events'!A:N", "'Holidays'!A:J", "'Categories'!A:D"]);
+  assert.deepEqual(calls, ["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]);
   assert.equal(data.days[0].events[0].title, "월례회");
 });
 
@@ -43,7 +43,7 @@ test("month loading reuses a short-lived sheet data cache for fast month changes
     cacheTtlMs: 30_000,
     getValues: async (_spreadsheetId, range) => {
       calls.push(range);
-      if (range === "'Events'!A:N") return [["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]];
+      if (range === "'Events'!A:O") return [["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]];
       if (range === "'Holidays'!A:J") return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
       if (range === "'Categories'!A:D") return [["name", "color", "sortOrder", "active"]];
       throw new Error(`unexpected range ${range}`);
@@ -53,7 +53,7 @@ test("month loading reuses a short-lived sheet data cache for fast month changes
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 7 }, deps);
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 8 }, deps);
 
-  assert.deepEqual(calls, ["'Events'!A:N", "'Holidays'!A:J", "'Categories'!A:D"]);
+  assert.deepEqual(calls, ["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]);
 });
 
 test("month loading preserves workbook imports saved before the endDate column existed", async () => {
@@ -63,7 +63,7 @@ test("month loading preserves workbook imports saved before the endDate column e
     {
       cacheTtlMs: 0,
       getValues: async (_spreadsheetId, range) => {
-        if (range === "'Events'!A:N") {
+        if (range === "'Events'!A:O") {
           return [
             ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
             ["evt_old", "2026-07-03", "행사", "09:00", "업로드 행사", "강당", "교무부", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
@@ -95,6 +95,7 @@ test("month loading preserves workbook imports saved before the endDate column e
     deletedAt: "",
     reviewNeeded: "",
     importBatchId: "",
+    memo: "",
   });
 });
 
@@ -105,7 +106,7 @@ test("month loading preserves legacy workbook rows with blank categories", async
     {
       cacheTtlMs: 0,
       getValues: async (_spreadsheetId, range) => {
-        if (range === "'Events'!A:N") {
+        if (range === "'Events'!A:O") {
           return [
             ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
             ["evt_old_blank", "2026-07-03", "", "15:00-16:30", "1학기 담당장학 및 과학실 안전 점검", "3학년 교실, 과학실", "김다래, 송동석", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
@@ -136,7 +137,7 @@ test("month loading surfaces rows whose dates were coerced to Sheets serial numb
     {
       cacheTtlMs: 0,
       getValues: async (_spreadsheetId, range) => {
-        if (range === "'Events'!A:N") {
+        if (range === "'Events'!A:O") {
           return [
             ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
             ["evt_serial", "46266", "", "", "", "9월~ 기초학력 진단 집중의 달", "", "", "1", "", "", "", "", "batch_1"],
@@ -192,8 +193,8 @@ test("workbook import appends parsed events tagged with a new batch id", async (
     [
       "append",
       "sheet_3",
-      "'Events'!A2:N",
-      [["evt_1", "2026-06-01", "", "행사", "09:00", "시업식", "강당", "문유리", 1, "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "", "", "batch_test"]],
+      "'Events'!A2:O",
+      [["evt_1", "2026-06-01", "", "행사", "09:00", "시업식", "강당", "문유리", 1, "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "", "", "batch_test", ""]],
     ],
     ["log", "import-workbook", "", "", { count: 1, sheets: ["6월"], warnings: ["검토 필요"], batchId: "batch_test" }],
     ["clear", "sheet_3"],
@@ -207,7 +208,7 @@ test("undo import batch soft-deletes only events from that batch", async () => {
     "batch_test",
     {
       getValues: async (_spreadsheetId, range) => {
-        assert.equal(range, "'Events'!A:N");
+        assert.equal(range, "'Events'!A:O");
         return [
           ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
           ["evt_imported", "2026-06-01", "", "행사", "09:00", "시업식", "강당", "문유리", "1", "", "", "", "", "batch_test"],
@@ -237,7 +238,7 @@ test("month clear removes only events in the selected month", async () => {
     { scope: "month", schoolYear: 2026, month: 7 },
     {
       getValues: async (_spreadsheetId, range) => {
-        assert.equal(range, "'Events'!A:N");
+        assert.equal(range, "'Events'!A:O");
         return [
           ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
           ["evt_july", "2026-07-03", "", "행사", "09:00", "지울 행사", "강당", "교무부", "1", "", "", ""],
@@ -253,14 +254,14 @@ test("month clear removes only events in the selected month", async () => {
 
   assert.deepEqual(result, { count: 1, start: "2026-07-01", end: "2026-07-31" });
   assert.deepEqual(calls, [
-    ["clear", "sheet_clear", "'Events'!A:N"],
+    ["clear", "sheet_clear", "'Events'!A:O"],
     [
       "update",
       "sheet_clear",
-      "'Events'!A1:N2",
+      "'Events'!A1:O2",
       [
-        ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
-        ["evt_august", "2026-08-01", "", "행사", "09:00", "남길 행사", "강당", "교무부", "2", "", "", "", "", ""],
+        ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId", "memo"],
+        ["evt_august", "2026-08-01", "", "행사", "09:00", "남길 행사", "강당", "교무부", "2", "", "", "", "", "", ""],
       ],
     ],
     ["log", "clear-month", "", "", { start: "2026-07-01", end: "2026-07-31", count: 1 }],
