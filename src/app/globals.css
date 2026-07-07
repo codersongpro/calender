@@ -983,6 +983,17 @@ input[type="file"] {
     --print-page-height: 287mm;
     --print-title-height: 7mm;
     --print-header-height: 5mm;
+  }
+
+  /*
+   * --print-row-count is set as an inline style on each individual
+   * .planner-table (one per print page). Custom properties resolve using the
+   * value seen at the element where the consuming declaration lives, so
+   * --print-row-height/--print-font-size must be declared on .planner-table
+   * itself (not :root) or every page would silently fall back to the same
+   * default row count regardless of how many rows that page actually has.
+   */
+  .planner-table {
     --print-row-height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
     --print-font-size: clamp(6px, calc(var(--print-row-height) * 0.42), 12px);
   }
@@ -1023,6 +1034,14 @@ input[type="file"] {
     page-break-after: avoid;
     transform: none;
     width: 100%;
+  }
+
+  /* Forces the next page group onto a new sheet when printing split across
+     multiple pages; overrides the page-break-after: avoid above by having
+     higher selector specificity. */
+  .print-surface.print-page-break {
+    break-after: page;
+    page-break-after: always;
   }
 
   .print-title {

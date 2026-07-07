@@ -264,8 +264,44 @@ export function buildMonthCsv(monthData) {
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
+export function getRowCountForDays(days) {
+  return (days ?? []).reduce((count, day) => count + Math.max(day.events?.length ?? 0, 1), 0);
+}
+
 export function getPrintRowCount(monthData) {
-  return (monthData.days ?? []).reduce((count, day) => count + Math.max(day.events?.length ?? 0, 1), 0);
+  return getRowCountForDays(monthData.days);
+}
+
+// Split a month's days across print pages so each page's total row count is
+// as close to equal as possible, without splitting a single day's rows across
+// two pages (a day with several events always stays together).
+export function splitDaysForPrint(days, pageCount) {
+  const list = days ?? [];
+  const count = Math.max(1, Math.floor(Number(pageCount) || 1));
+  if (count <= 1 || list.length <= 1) return [list];
+
+  const rowCounts = list.map((day) => Math.max(day.events?.length ?? 0, 1));
+  const total = rowCounts.reduce((sum, n) => sum + n, 0);
+
+  const pages = [];
+  let dayIndex = 0;
+  let rowsSoFar = 0;
+  for (let page = 1; page <= count; page++) {
+    const isLastPage = page === count;
+    const targetRows = (total * page) / count;
+    const group = [];
+    while (dayIndex < list.length) {
+      const remainingDaysAfterThis = list.length - dayIndex - 1;
+      const remainingPagesAfterThis = count - page;
+      if (!isLastPage && group.length > 0 && remainingDaysAfterThis < remainingPagesAfterThis) break;
+      group.push(list[dayIndex]);
+      rowsSoFar += rowCounts[dayIndex];
+      dayIndex++;
+      if (!isLastPage && rowsSoFar >= targetRows) break;
+    }
+    pages.push(group);
+  }
+  return pages.filter((group) => group.length > 0);
 }
 
 export function makeId(prefix = "id") {

@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getMonthOptions, getPrintRowCount, normalizeBoolean } from "../lib/domain.js";
+import {
+  buildMonthCsv,
+  EVENT_CATEGORY_OPTIONS,
+  getMonthOptions,
+  getRowCountForDays,
+  normalizeBoolean,
+  splitDaysForPrint,
+} from "../lib/domain.js";
 
 const blankEvent = {
   date: "",
@@ -25,7 +32,9 @@ export default function PlannerApp({ slug }) {
   const [eventDraft, setEventDraft] = useState(blankEvent);
   const [editingEventId, setEditingEventId] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
+  const [printPages, setPrintPages] = useState(1);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
+  const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
 
   useEffect(() => {
     loadConfig();
@@ -261,23 +270,38 @@ export default function PlannerApp({ slug }) {
         {!config.canEdit ? (
           <PasswordUnlock label="편집 비밀번호" buttonLabel="편집 열기" onSubmit={(password) => unlock("edit", password)} />
         ) : null}
+        <label>
+          <span>인쇄 용지</span>
+          <select value={printPages} onChange={(event) => setPrintPages(Number(event.target.value))}>
+            <option value={1}>1페이지에 맞추기</option>
+            <option value={2}>2페이지로 나누기</option>
+          </select>
+        </label>
       </section>
 
       <StatusBar status={status} error={error} />
 
       {monthData ? (
-        <section className="print-surface">
-          <div className="print-title">
-            <h2>[{monthData.month}월중 행사 계획]</h2>
-            <p>{schoolYear}학년도</p>
-          </div>
-          <PlannerTable
-            monthData={monthData}
-            onEdit={beginEdit}
-            onCreate={beginCreate}
-            onDismissReview={dismissReview}
-            canEdit={Boolean(config.canEdit)}
-          />
+        <>
+          {printPageGroups.map((pageDays, index) => (
+            <section key={index} className={`print-surface${index < printPageGroups.length - 1 ? " print-page-break" : ""}`}>
+              <div className="print-title">
+                <h2>[{monthData.month}월중 행사 계획]</h2>
+                <p>
+                  {schoolYear}학년도
+                  {printPageGroups.length > 1 ? ` · ${index + 1}/${printPageGroups.length}페이지` : ""}
+                </p>
+              </div>
+              <PlannerTable
+                days={pageDays}
+                categories={monthData.categories}
+                onEdit={beginEdit}
+                onCreate={beginCreate}
+                onDismissReview={dismissReview}
+                canEdit={Boolean(config.canEdit)}
+              />
+            </section>
+          ))}
           <MobileCards
             monthData={monthData}
             onEdit={beginEdit}
@@ -285,7 +309,7 @@ export default function PlannerApp({ slug }) {
             onDismissReview={dismissReview}
             canEdit={Boolean(config.canEdit)}
           />
-        </section>
+        </>
       ) : (
         <div className="loading">월별 계획을 불러오는 중</div>
       )}
@@ -306,8 +330,8 @@ export default function PlannerApp({ slug }) {
   );
 }
 
-function PlannerTable({ monthData, onEdit, onCreate, onDismissReview, canEdit }) {
-  const printRowCount = getPrintRowCount(monthData);
+function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, canEdit }) {
+  const printRowCount = getRowCountForDays(days);
 
   return (
     <table className="planner-table" style={{ "--print-row-count": String(printRowCount) }}>
@@ -323,7 +347,7 @@ function PlannerTable({ monthData, onEdit, onCreate, onDismissReview, canEdit })
         </tr>
       </thead>
       <tbody>
-        {monthData.days.map((day) => {
+        {days.map((day) => {
           const events = day.events.length ? day.events : [null];
           return events.map((event, index) => (
             <tr key={`${day.date}-${event?.id || "blank"}-${index}`} className={dayClass(day)}>
@@ -337,7 +361,7 @@ function PlannerTable({ monthData, onEdit, onCreate, onDismissReview, canEdit })
                   <td rowSpan={events.length}>{day.weekday}</td>
                 </>
               ) : null}
-              <td>{event ? <CategoryPill value={event.category} categories={monthData.categories} /> : ""}</td>
+              <td>{event ? <CategoryPill value={event.category} categories={categories} /> : ""}</td>
               <td className="time-cell">{event?.time || ""}</td>
               <td className="title-cell">
                 {index === 0 ? <HolidayLine day={day} /> : null}

@@ -8,9 +8,11 @@ import {
   EVENT_CATEGORY_OPTIONS,
   getPrintRowCount,
   getMonthOptions,
+  getRowCountForDays,
   getSchoolYearRange,
   normalizeSheetDate,
   parseLegacyRows,
+  splitDaysForPrint,
 } from "../src/lib/domain.js";
 import { hashPassword, verifyPassword } from "../src/lib/security.js";
 import { extractSpreadsheetId } from "../src/lib/sheets.js";
@@ -393,5 +395,37 @@ test("print row count follows expanded event rows and blank days", () => {
     }),
     4,
   );
+});
+
+test("splitDaysForPrint returns everything on one page by default", () => {
+  const days = [{ events: [] }, { events: [{ id: "evt_1" }] }, { events: [] }];
+  assert.deepEqual(splitDaysForPrint(days, 1), [days]);
+  assert.deepEqual(splitDaysForPrint(days), [days]);
+});
+
+test("splitDaysForPrint balances row counts across pages without splitting a day", () => {
+  const days = Array.from({ length: 10 }, (_, index) => ({
+    day: index + 1,
+    // Front-loaded: days 1-3 have 5 events each, the rest have 1.
+    events: Array.from({ length: index < 3 ? 5 : 1 }, (__, eventIndex) => ({ id: `evt_${index}_${eventIndex}` })),
+  }));
+  const totalRows = getRowCountForDays(days);
+
+  const pages = splitDaysForPrint(days, 2);
+  assert.equal(pages.length, 2);
+  assert.deepEqual(pages.flat(), days);
+
+  const rowCounts = pages.map((pageDays) => getRowCountForDays(pageDays));
+  assert.equal(rowCounts[0] + rowCounts[1], totalRows);
+  // Balanced split should land closer to half of the total than an even
+  // day-count split (5 and 5 days) would, since the first 3 days are heavy.
+  assert.ok(Math.abs(rowCounts[0] - rowCounts[1]) < totalRows / 2);
+});
+
+test("splitDaysForPrint keeps at least one day per page even with more pages than days", () => {
+  const days = [{ events: [] }, { events: [] }];
+  const pages = splitDaysForPrint(days, 5);
+  assert.equal(pages.length, 2);
+  assert.deepEqual(pages.flat(), days);
 });
 
