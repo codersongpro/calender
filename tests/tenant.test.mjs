@@ -8,6 +8,7 @@ import {
 } from "../src/lib/tenantDomain.js";
 import {
   createScopedSessionToken,
+  readTenantSessionPayload,
   schoolSessionCookieName,
   scopeAllows,
   verifyScopedSessionToken,
@@ -89,6 +90,32 @@ test("school sessions are bound to tenant id, slug, and allowed scopes", () => {
     verifyScopedSessionToken(token, { ...tenant, id: "tenant_b", slug: "school-b" }, "view", { now: 2_000 }),
     null,
   );
+});
+
+test("public-view tenants still recognize an admin session cookie", () => {
+  const tenant = { id: "tenant_pub", slug: "school-pub", appSecret: "pub-secret", viewPasswordHash: "" };
+  const adminToken = createScopedSessionToken(tenant, "admin");
+  const cookieName = schoolSessionCookieName(tenant.slug, "admin");
+  const request = {
+    cookies: { get: (name) => (name === cookieName ? { value: adminToken } : undefined) },
+    headers: { get: () => null },
+  };
+
+  // Reading the public config (view scope) must surface the admin scope so the
+  // admin console can open even though the calendar is publicly viewable.
+  const payload = readTenantSessionPayload(request, tenant, "view");
+  assert.equal(payload?.scope, "admin");
+
+  // Admin-only routes are still satisfied by the same cookie.
+  assert.equal(readTenantSessionPayload(request, tenant, "admin")?.scope, "admin");
+});
+
+test("public-view tenants grant anonymous view but not admin", () => {
+  const tenant = { id: "tenant_pub2", slug: "school-pub2", appSecret: "pub-secret", viewPasswordHash: "" };
+  const request = { cookies: { get: () => undefined }, headers: { get: () => null } };
+
+  assert.equal(readTenantSessionPayload(request, tenant, "view")?.scope, "view");
+  assert.equal(readTenantSessionPayload(request, tenant, "admin"), null);
 });
 
 test("scope ordering lets stronger school roles satisfy weaker school routes", () => {

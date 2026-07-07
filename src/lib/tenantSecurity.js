@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { createSessionToken, verifySessionToken } from "./security.js";
+import { tenantRequiresViewAuth } from "./tenantDomain.js";
 
 const SCHOOL_SCOPE_RANK = {
   view: 1,
@@ -40,6 +41,29 @@ export function scopeAllows(actualScope, requiredScope) {
 export function schoolSessionCookieName(slug, scope) {
   const slugHash = createHash("sha256").update(String(slug)).digest("base64url").slice(0, 16);
   return `school_${scope}_${slugHash}`;
+}
+
+// Resolve the effective session for a tenant request. Scoped cookies (and a
+// bearer token) are checked first so a stronger session (admin/edit) is
+// recognized even on public-view tenants; only when no session is present does
+// a publicly viewable tenant fall back to an anonymous view payload.
+export function readTenantSessionPayload(request, tenant, requiredScope) {
+  for (const scope of ["admin", "edit", "view"]) {
+    const token = request.cookies?.get(schoolSessionCookieName(tenant.slug, scope))?.value;
+    const payload = verifyScopedSessionToken(token, tenant, requiredScope);
+    if (payload) return payload;
+  }
+  const bearerPayload = verifyScopedSessionToken(bearerTokenFromRequest(request), tenant, requiredScope);
+  if (bearerPayload) return bearerPayload;
+
+  if (requiredScope === "view" && !tenantRequiresViewAuth(tenant)) {
+    return { tenantId: tenant.id, slug: tenant.slug, scope: "view", public: true };
+  }
+  return null;
+}
+
+function bearerTokenFromRequest(request) {
+  return request.headers?.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
 }
 
 function defaultTtlMs(scope) {

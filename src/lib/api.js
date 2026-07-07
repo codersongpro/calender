@@ -12,8 +12,8 @@ import { getOperatorPasswordHash } from "./tenantStore.js";
 import { publicTenantSummary, requireActiveTenant, tenantRequiresViewAuth } from "./tenantDomain.js";
 import {
   createScopedSessionToken,
+  readTenantSessionPayload,
   schoolSessionCookieName,
-  verifyScopedSessionToken,
 } from "./tenantSecurity.js";
 
 export const runtime = "nodejs";
@@ -108,17 +108,6 @@ export function assertRequiredFields(input, fields) {
   }
 }
 
-function readTenantSessionPayload(request, tenant, requiredScope) {
-  if (requiredScope === "view" && !tenantRequiresViewAuth(tenant)) {
-    return { tenantId: tenant.id, slug: tenant.slug, scope: "view", public: true };
-  }
-  for (const scope of ["admin", "edit", "view"]) {
-    const token = request.cookies?.get(schoolSessionCookieName(tenant.slug, scope))?.value;
-    const payload = verifyScopedSessionToken(token, tenant, requiredScope);
-    if (payload) return payload;
-  }
-  return verifyScopedSessionToken(bearerToken(request), tenant, requiredScope);
-}
 
 function tenantPasswordHash(tenant, scope) {
   if (scope === "view") return tenant.viewPasswordHash;
