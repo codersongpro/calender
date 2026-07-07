@@ -55,6 +55,29 @@ export function toDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+// Google Sheets can coerce a written "2026-09-01" into a serial number (days
+// since 1899-12-30). Convert such serials back to an ISO date key so date-range
+// filtering keeps working even for rows saved before writes switched to RAW.
+export function normalizeSheetDate(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)) {
+    const [year, month, day] = text.split("-").map(Number);
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+  if (/^\d{4,6}(\.\d+)?$/.test(text)) {
+    const serial = Math.floor(Number(text));
+    if (serial > 20000 && serial < 80000) {
+      const date = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(date.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+  }
+  return text;
+}
+
 export function parseDateKey(value) {
   const [year, month, day] = String(value).split("-").map(Number);
   return new Date(year, month - 1, day);

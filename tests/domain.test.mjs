@@ -9,10 +9,24 @@ import {
   getPrintRowCount,
   getMonthOptions,
   getSchoolYearRange,
+  normalizeSheetDate,
   parseLegacyRows,
 } from "../src/lib/domain.js";
 import { hashPassword, verifyPassword } from "../src/lib/security.js";
 import { extractSpreadsheetId } from "../src/lib/sheets.js";
+
+test("normalizeSheetDate converts Google Sheets serial dates back to ISO keys", () => {
+  assert.equal(normalizeSheetDate(46266), "2026-09-01");
+  assert.equal(normalizeSheetDate("46204"), "2026-07-01");
+  assert.equal(normalizeSheetDate("46237"), "2026-08-03");
+});
+
+test("normalizeSheetDate leaves ISO date strings and blanks untouched", () => {
+  assert.equal(normalizeSheetDate("2026-09-23"), "2026-09-23");
+  assert.equal(normalizeSheetDate("2026-7-3"), "2026-07-03");
+  assert.equal(normalizeSheetDate(""), "");
+  assert.equal(normalizeSheetDate(null), "");
+});
 
 test("school year always runs from March 1 to the last day of next February", () => {
   assert.deepEqual(getSchoolYearRange(2026), {

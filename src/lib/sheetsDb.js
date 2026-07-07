@@ -10,6 +10,7 @@ import {
   HOLIDAY_HEADERS,
   isItemInRange,
   makeId,
+  normalizeSheetDate,
   objectToRow,
   parseLegacyRows,
   rowsToObjects,
@@ -301,7 +302,11 @@ async function getInstitutionData(config, options = {}) {
 }
 
 function eventsFromRows(rows) {
-  return rowsToObjectsWithLegacyRows(rows, EVENT_HEADERS, LEGACY_EVENT_HEADERS, isLegacyEventRow);
+  return rowsToObjectsWithLegacyRows(rows, EVENT_HEADERS, LEGACY_EVENT_HEADERS, isLegacyEventRow).map((event) => ({
+    ...event,
+    date: normalizeSheetDate(event.date),
+    endDate: normalizeSheetDate(event.endDate),
+  }));
 }
 
 function categoriesFromRows(rows) {
@@ -314,6 +319,8 @@ function categoriesFromRows(rows) {
 function holidaysFromRows(rows) {
   return rowsToObjectsWithLegacyRows(rows, HOLIDAY_HEADERS, LEGACY_HOLIDAY_HEADERS, isLegacyHolidayRow).map((holiday) => ({
     ...holiday,
+    date: normalizeSheetDate(holiday.date),
+    endDate: normalizeSheetDate(holiday.endDate),
     isHoliday: holiday.isHoliday !== "FALSE",
     enabled: holiday.enabled !== "FALSE",
   }));

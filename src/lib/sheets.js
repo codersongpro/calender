@@ -102,7 +102,7 @@ export async function getValues(spreadsheetId, range) {
 }
 
 export async function updateValues(spreadsheetId, range, values) {
-  return sheetsRequest(`${API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, {
+  return sheetsRequest(`${API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, {
     method: "PUT",
     body: JSON.stringify({ values }),
   });
@@ -111,7 +111,7 @@ export async function updateValues(spreadsheetId, range, values) {
 export async function appendValues(spreadsheetId, range, values) {
   if (!values.length) return null;
   return sheetsRequest(
-    `${API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    `${API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     {
       method: "POST",
       body: JSON.stringify({ values }),

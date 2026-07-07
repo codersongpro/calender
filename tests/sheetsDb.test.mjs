@@ -129,6 +129,34 @@ test("month loading preserves legacy workbook rows with blank categories", async
   assert.equal(data.days[2].events[0].owner, "김다래, 송동석");
 });
 
+test("month loading surfaces rows whose dates were coerced to Sheets serial numbers", async () => {
+  const data = await getMonthData(
+    { orgName: "Uploaded School", spreadsheetId: "sheet_serial_dates" },
+    { year: 2026, month: 9 },
+    {
+      cacheTtlMs: 0,
+      getValues: async (_spreadsheetId, range) => {
+        if (range === "'Events'!A:N") {
+          return [
+            ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
+            ["evt_serial", "46266", "", "", "", "9월~ 기초학력 진단 집중의 달", "", "", "1", "", "", "", "", "batch_1"],
+          ];
+        }
+        if (range === "'Holidays'!A:J") {
+          return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
+        }
+        if (range === "'Categories'!A:D") {
+          return [["name", "color", "sortOrder", "active"]];
+        }
+        throw new Error(`unexpected range ${range}`);
+      },
+    },
+  );
+
+  assert.equal(data.days[0].events[0].date, "2026-09-01");
+  assert.equal(data.days[0].events[0].title, "9월~ 기초학력 진단 집중의 달");
+});
+
 test("workbook import appends parsed events tagged with a new batch id", async () => {
   const calls = [];
   const event = {
