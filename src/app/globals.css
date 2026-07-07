@@ -538,6 +538,16 @@ input[type="file"] {
   line-height: 1.45;
 }
 
+.install-help-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding-left: 20px;
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .guide-box code {
   color: var(--foreground);
   font-size: 12px;

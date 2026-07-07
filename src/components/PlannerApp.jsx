@@ -33,12 +33,84 @@ export default function PlannerApp({ slug }) {
   const [editingEventId, setEditingEventId] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
   const [printPages, setPrintPages] = useState(1);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installed, setInstalled] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
   const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
 
   useEffect(() => {
     loadConfig();
   }, [basePath]);
+
+  useEffect(() => {
+    const manifestUrl = `${basePath}/manifest`;
+    const manifestLink = document.querySelector('link[rel="manifest"]') || document.createElement("link");
+    manifestLink.rel = "manifest";
+    manifestLink.href = manifestUrl;
+    if (!manifestLink.isConnected) document.head.appendChild(manifestLink);
+
+    const appleIcon = document.querySelector('link[rel="apple-touch-icon"]') || document.createElement("link");
+    appleIcon.rel = "apple-touch-icon";
+    appleIcon.href = "/apple-touch-icon.png";
+    if (!appleIcon.isConnected) document.head.appendChild(appleIcon);
+
+    const themeColor = document.querySelector('meta[name="theme-color"]') || document.createElement("meta");
+    themeColor.name = "theme-color";
+    themeColor.content = "#1d6f8f";
+    if (!themeColor.isConnected) document.head.appendChild(themeColor);
+
+    const appleCapable = document.querySelector('meta[name="apple-mobile-web-app-capable"]') || document.createElement("meta");
+    appleCapable.name = "apple-mobile-web-app-capable";
+    appleCapable.content = "yes";
+    if (!appleCapable.isConnected) document.head.appendChild(appleCapable);
+  }, [basePath]);
+
+  useEffect(() => {
+    const orgName = monthData?.config?.orgName || config?.orgName;
+    if (!orgName) return;
+    const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
+    appleTitle.name = "apple-mobile-web-app-title";
+    appleTitle.content = orgName;
+    if (!appleTitle.isConnected) document.head.appendChild(appleTitle);
+  }, [monthData?.config?.orgName, config?.orgName]);
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Add-to-home-screen still works without the service worker on most
+      // browsers; ignore registration failures (e.g. running over plain HTTP
+      // in local dev).
+    });
+  }, []);
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setInstallPrompt(event);
+    }
+    function handleAppInstalled() {
+      setInstallPrompt(null);
+      setInstalled(true);
+    }
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  async function addShortcut() {
+    if (!installPrompt) {
+      setShowInstallHelp(true);
+      return;
+    }
+    installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice?.outcome === "accepted") setInstalled(true);
+    setInstallPrompt(null);
+  }
 
   useEffect(() => {
     if (config?.authenticated) loadMonth();
@@ -229,6 +301,11 @@ export default function PlannerApp({ slug }) {
           <button type="button" className="ghost-button" onClick={downloadMonthCsv} disabled={!monthData}>
             다운로드
           </button>
+          {!installed ? (
+            <button type="button" className="ghost-button" onClick={addShortcut}>
+              바로가기 추가
+            </button>
+          ) : null}
           {config.canEdit ? (
             <button type="button" className="primary-button" onClick={() => beginCreate()}>
               행사 추가
@@ -326,7 +403,50 @@ export default function PlannerApp({ slug }) {
           onClose={() => setShowEventForm(false)}
         />
       ) : null}
+
+      {showInstallHelp ? <InstallHelpDialog onClose={() => setShowInstallHelp(false)} /> : null}
     </main>
+  );
+}
+
+function InstallHelpDialog({ onClose }) {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isAndroid = /android/i.test(ua);
+
+  return (
+    <div className="dialog-backdrop">
+      <section className="dialog">
+        <header>
+          <h2>바로가기 추가</h2>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="닫기">
+            x
+          </button>
+        </header>
+        {isIOS ? (
+          <ol className="install-help-steps">
+            <li>하단 공유 버튼(⬆)을 누르세요.</li>
+            <li>메뉴에서 "홈 화면에 추가"를 선택하세요.</li>
+            <li>"추가"를 누르면 홈 화면에 바로가기가 생깁니다.</li>
+          </ol>
+        ) : isAndroid ? (
+          <ol className="install-help-steps">
+            <li>브라우저 메뉴(⋮)를 여세요.</li>
+            <li>"앱 설치" 또는 "홈 화면에 추가"를 선택하세요.</li>
+          </ol>
+        ) : (
+          <ol className="install-help-steps">
+            <li>브라우저 주소창 오른쪽의 설치 아이콘을 누르거나, 브라우저 메뉴에서 "설치"를 선택하세요.</li>
+            <li>설치하면 바탕화면/시작 메뉴에서 바로 열 수 있습니다.</li>
+          </ol>
+        )}
+        <div className="dialog-actions wide">
+          <button type="button" className="primary-button" onClick={onClose}>
+            확인
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
