@@ -9,6 +9,8 @@
   --danger: #b42318;
   --warm: #fff3cf;
   --holiday: #ffe4e6;
+  --highlight: #e8590c;
+  --highlight-strong: #c2410c;
 }
 
 * {
@@ -102,6 +104,7 @@ h2 {
 .secondary-button,
 .ghost-button,
 .danger-button,
+.highlight-button,
 .small-button,
 .icon-button,
 .primary-link,
@@ -125,6 +128,17 @@ h2 {
   background: #e7f2f6;
   color: #0c5369;
   border-color: #b9d6e0;
+}
+
+.highlight-button {
+  background: var(--highlight);
+  color: #ffffff;
+  border-color: var(--highlight-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--highlight), transparent 75%);
+}
+
+.highlight-button:hover {
+  background: var(--highlight-strong);
 }
 
 .ghost-button {
@@ -261,6 +275,13 @@ input[type="file"] {
   background: #fff1f0;
   border-color: #ffccc7;
   color: var(--danger);
+}
+
+.date-click-hint {
+  margin: 10px clamp(16px, 4vw, 44px) 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .print-surface {
@@ -817,6 +838,10 @@ input[type="file"] {
     margin: 10px 16px 0;
   }
 
+  .date-click-hint {
+    display: none;
+  }
+
   .print-surface {
     margin: 14px 16px 36px;
   }
@@ -983,6 +1008,7 @@ input[type="file"] {
   .secondary-button,
   .ghost-button,
   .danger-button,
+  .highlight-button,
   .small-button,
   .primary-link,
   .secondary-link {
@@ -1030,6 +1056,7 @@ input[type="file"] {
   .topbar,
   .control-band,
   .status,
+  .date-click-hint,
   .mobile-cards,
   .dialog-backdrop,
   .date-button,

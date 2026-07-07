@@ -345,7 +345,12 @@ export default function PlannerApp({ slug }) {
           </select>
         </label>
         {!config.canEdit ? (
-          <PasswordUnlock label="편집 비밀번호" buttonLabel="편집권한부여" onSubmit={(password) => unlock("edit", password)} />
+          <PasswordUnlock
+            label="편집 비밀번호"
+            buttonLabel="편집권한부여"
+            buttonClassName="highlight-button"
+            onSubmit={(password) => unlock("edit", password)}
+          />
         ) : null}
         <label>
           <span>인쇄 용지</span>
@@ -357,6 +362,8 @@ export default function PlannerApp({ slug }) {
       </section>
 
       <StatusBar status={status} error={error} />
+
+      {config.canEdit ? <p className="date-click-hint">날짜를 클릭하면 그 날짜에 새 일정을 추가할 수 있습니다.</p> : null}
 
       {monthData ? (
         <>
@@ -474,7 +481,12 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, can
               {index === 0 ? (
                 <>
                   <td rowSpan={events.length} className="date-cell">
-                    <button type="button" onClick={() => canEdit && onCreate(day.date)} className="date-button">
+                    <button
+                      type="button"
+                      onClick={() => canEdit && onCreate(day.date)}
+                      className="date-button"
+                      title={canEdit ? "클릭하여 일정 추가" : undefined}
+                    >
                       {day.day}
                     </button>
                   </td>
@@ -710,7 +722,7 @@ function formatClock(hour, minute) {
   return `${String(nextHour).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`;
 }
 
-export function PasswordUnlock({ label, buttonLabel = "확인", onSubmit }) {
+export function PasswordUnlock({ label, buttonLabel = "확인", buttonClassName = "secondary-button", onSubmit }) {
   const [password, setPassword] = useState("");
   return (
     <form
@@ -722,7 +734,7 @@ export function PasswordUnlock({ label, buttonLabel = "확인", onSubmit }) {
       }}
     >
       <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={label} />
-      <button type="submit" className="secondary-button">
+      <button type="submit" className={buttonClassName}>
         {buttonLabel}
       </button>
     </form>
