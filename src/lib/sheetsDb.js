@@ -112,7 +112,7 @@ export async function updateEvent(config, id, input) {
   const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id, LEGACY_EVENT_HEADERS, isLegacyEventRow);
   const updated = {
     ...object,
-    ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder"].map((key) => [key, input[key] ?? object[key] ?? ""])),
+    ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "reviewNeeded"].map((key) => [key, input[key] ?? object[key] ?? ""])),
     updatedAt: new Date().toISOString(),
   };
   await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:${EVENTS_LAST_COLUMN}${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);

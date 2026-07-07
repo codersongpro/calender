@@ -132,6 +132,15 @@ export default function PlannerApp({ slug }) {
     }
   }
 
+  async function dismissReview(event) {
+    const data = await request(`${basePath}/events/${event.id}`, {
+      method: "PATCH",
+      body: { reviewNeeded: "" },
+      quiet: true,
+    });
+    if (data) await loadMonth();
+  }
+
   async function deleteCurrentEvent() {
     if (!editingEventId) return;
     const data = await request(`${basePath}/events/${editingEventId}`, {
@@ -262,8 +271,20 @@ export default function PlannerApp({ slug }) {
             <h2>[{monthData.month}월중 행사 계획]</h2>
             <p>{schoolYear}학년도</p>
           </div>
-          <PlannerTable monthData={monthData} onEdit={beginEdit} onCreate={beginCreate} canEdit={Boolean(config.canEdit)} />
-          <MobileCards monthData={monthData} onEdit={beginEdit} onCreate={beginCreate} canEdit={Boolean(config.canEdit)} />
+          <PlannerTable
+            monthData={monthData}
+            onEdit={beginEdit}
+            onCreate={beginCreate}
+            onDismissReview={dismissReview}
+            canEdit={Boolean(config.canEdit)}
+          />
+          <MobileCards
+            monthData={monthData}
+            onEdit={beginEdit}
+            onCreate={beginCreate}
+            onDismissReview={dismissReview}
+            canEdit={Boolean(config.canEdit)}
+          />
         </section>
       ) : (
         <div className="loading">월별 계획을 불러오는 중</div>
@@ -285,7 +306,7 @@ export default function PlannerApp({ slug }) {
   );
 }
 
-function PlannerTable({ monthData, onEdit, onCreate, canEdit }) {
+function PlannerTable({ monthData, onEdit, onCreate, onDismissReview, canEdit }) {
   const printRowCount = getPrintRowCount(monthData);
 
   return (
@@ -323,9 +344,7 @@ function PlannerTable({ monthData, onEdit, onCreate, canEdit }) {
                 {event ? (
                   <button type="button" className="event-title" onClick={() => canEdit && onEdit(event)}>
                     {normalizeBoolean(event.reviewNeeded) ? (
-                      <span className="review-badge" title="가져오기 시 줄 수가 맞지 않아 검토가 필요합니다">
-                        검토
-                      </span>
+                      <ReviewBadge event={event} canEdit={canEdit} onDismiss={onDismissReview} />
                     ) : null}
                     {event.title}
                   </button>
@@ -341,7 +360,7 @@ function PlannerTable({ monthData, onEdit, onCreate, canEdit }) {
   );
 }
 
-function MobileCards({ monthData, onEdit, onCreate, canEdit }) {
+function MobileCards({ monthData, onEdit, onCreate, onDismissReview, canEdit }) {
   return (
     <div className="mobile-cards">
       {monthData.days.map((day) => (
@@ -364,7 +383,9 @@ function MobileCards({ monthData, onEdit, onCreate, canEdit }) {
                 <span>
                   <CategoryPill value={event.category} categories={monthData.categories} />
                   {event.time ? <em>{event.time}</em> : null}
-                  {normalizeBoolean(event.reviewNeeded) ? <span className="review-badge">검토</span> : null}
+                  {normalizeBoolean(event.reviewNeeded) ? (
+                    <ReviewBadge event={event} canEdit={canEdit} onDismiss={onDismissReview} />
+                  ) : null}
                 </span>
                 <strong>{event.title}</strong>
                 <small>{[event.place, event.owner].filter(Boolean).join(" · ")}</small>
@@ -548,6 +569,36 @@ export function PasswordUnlock({ label, buttonLabel = "확인", onSubmit }) {
         {buttonLabel}
       </button>
     </form>
+  );
+}
+
+function ReviewBadge({ event, canEdit, onDismiss }) {
+  if (!canEdit) {
+    return (
+      <span className="review-badge" title="가져오기 시 줄 수가 맞지 않아 검토가 필요합니다">
+        검토
+      </span>
+    );
+  }
+  return (
+    <span
+      className="review-badge dismissable"
+      role="button"
+      tabIndex={0}
+      title="눌러서 검토 완료 처리"
+      onClick={(event_) => {
+        event_.stopPropagation();
+        onDismiss(event);
+      }}
+      onKeyDown={(event_) => {
+        if (event_.key !== "Enter" && event_.key !== " ") return;
+        event_.preventDefault();
+        event_.stopPropagation();
+        onDismiss(event);
+      }}
+    >
+      검토
+    </span>
   );
 }
 

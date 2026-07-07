@@ -389,6 +389,16 @@ input[type="file"] {
   vertical-align: middle;
 }
 
+.review-badge.dismissable {
+  cursor: pointer;
+}
+
+.review-badge.dismissable:hover,
+.review-badge.dismissable:focus-visible {
+  background: #ffedd5;
+  border-color: #fdba74;
+}
+
 .saturday-row td,
 .day-card.saturday-row {
   background: var(--warm);
