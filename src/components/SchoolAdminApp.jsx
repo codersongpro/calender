@@ -14,6 +14,9 @@ export default function SchoolAdminApp({ slug }) {
   const [holiday, setHoliday] = useState({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
+  const [lastImport, setLastImport] = useState(null);
   const monthOptions = getMonthOptions(schoolYear);
 
   useEffect(() => {
@@ -27,28 +30,33 @@ export default function SchoolAdminApp({ slug }) {
   async function request(url, { method = "GET", body, formData, setData, label, quiet = false } = {}) {
     setError("");
     if (!quiet) setStatus("처리 중입니다.");
-    const response = await fetch(
-      url,
-      formData
-        ? {
-            method,
-            body: formData,
-          }
-        : {
-            method,
-            headers: { "Content-Type": "application/json" },
-            body: body ? JSON.stringify(body) : undefined,
-          },
-    );
-    const data = await response.json();
-    if (!response.ok) {
-      setStatus("");
-      setError(data.error || "요청을 처리하지 못했습니다.");
-      return null;
+    setBusy(true);
+    try {
+      const response = await fetch(
+        url,
+        formData
+          ? {
+              method,
+              body: formData,
+            }
+          : {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: body ? JSON.stringify(body) : undefined,
+            },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setStatus("");
+        setError(data.error || "요청을 처리하지 못했습니다.");
+        return null;
+      }
+      if (setData) setData(data);
+      if (!quiet) setStatus(label || "완료되었습니다.");
+      return data;
+    } finally {
+      setBusy(false);
     }
-    if (setData) setData(data);
-    if (!quiet) setStatus(label || "완료되었습니다.");
-    return data;
   }
 
   async function unlock(password) {
@@ -90,14 +98,18 @@ export default function SchoolAdminApp({ slug }) {
   }
 
   async function importLegacy() {
-    await request(`${basePath}/import`, {
+    const data = await request(`${basePath}/import`, {
       method: "POST",
       body: { schoolYear },
       label: "기존 월별 탭을 가져왔습니다.",
     });
+    if (data) {
+      notifyPlannerChanged(slug);
+      if (data.batchId) setLastImport({ batchId: data.batchId, count: data.count });
+    }
   }
 
-  async function importWorkbook(event) {
+  async function previewWorkbook(event) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const file = formData.get("file");
@@ -109,13 +121,52 @@ export default function SchoolAdminApp({ slug }) {
     const data = await request(`${basePath}/import`, {
       method: "POST",
       formData,
+      quiet: true,
+    });
+    if (data) {
+      setImportPreview(data);
+      const warningText = data.warnings?.length ? ` 검토 필요 ${data.warnings.length}건을 확인해 주세요.` : "";
+      setStatus(`미리보기: ${data.count}개 일정을 찾았습니다.${warningText} 내용을 확인한 뒤 아래에서 반영하세요.`);
+    }
+  }
+
+  function cancelImportPreview() {
+    setImportPreview(null);
+    setStatus("");
+  }
+
+  async function confirmImportPreview() {
+    if (!importPreview) return;
+    const data = await request(`${basePath}/import`, {
+      method: "POST",
+      body: {
+        action: "commit-workbook",
+        events: importPreview.events,
+        sheets: importPreview.sheets,
+        warnings: importPreview.warnings,
+      },
       label: "엑셀 파일을 가져왔습니다.",
     });
     if (data) {
-      event.currentTarget.reset();
+      setImportPreview(null);
       notifyPlannerChanged(slug);
+      if (data.batchId) setLastImport({ batchId: data.batchId, count: data.count });
       const warningText = data.warnings?.length ? ` 검토 필요 ${data.warnings.length}건이 있습니다.` : "";
       setStatus(`엑셀 파일에서 ${data.count}개 일정을 가져왔습니다.${warningText}`);
+    }
+  }
+
+  async function undoLastImport() {
+    if (!lastImport) return;
+    if (!window.confirm(`방금 가져온 ${lastImport.count}건을 취소할까요?`)) return;
+    const data = await request(`${basePath}/import/undo`, {
+      method: "POST",
+      body: { batchId: lastImport.batchId },
+      label: "방금 가져온 일정을 취소했습니다.",
+    });
+    if (data) {
+      setLastImport(null);
+      notifyPlannerChanged(slug);
     }
   }
 
@@ -249,7 +300,7 @@ export default function SchoolAdminApp({ slug }) {
             <strong>{config.serviceAccountEmail || "환경변수 설정 필요"}</strong>
           </div>
           <GoogleServiceAccountGuide />
-          <button type="submit" className="primary-button wide">
+          <button type="submit" className="primary-button wide" disabled={busy}>
             설정 저장
           </button>
         </form>
@@ -267,13 +318,21 @@ export default function SchoolAdminApp({ slug }) {
               />
             </label>
             <div className="admin-actions wide">
-              <button type="button" className="secondary-button" onClick={refreshHolidays}>
+              <button type="button" className="secondary-button" onClick={refreshHolidays} disabled={busy}>
                 공휴일 갱신
               </button>
-              <button type="button" className="secondary-button" onClick={importLegacy}>
+              <button type="button" className="secondary-button" onClick={importLegacy} disabled={busy}>
                 기존 탭 가져오기
               </button>
             </div>
+            {lastImport ? (
+              <div className="import-undo-banner wide">
+                <span>방금 {lastImport.count}건을 가져왔습니다.</span>
+                <button type="button" className="ghost-button" onClick={undoLastImport} disabled={busy}>
+                  가져오기 취소
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="form-grid">
@@ -288,28 +347,57 @@ export default function SchoolAdminApp({ slug }) {
               </select>
             </label>
             <div className="admin-actions wide">
-              <button type="button" className="danger-button" onClick={() => clearEvents("month")}>
+              <button type="button" className="danger-button" onClick={() => clearEvents("month")} disabled={busy}>
                 월별 행사 클리어
               </button>
-              <button type="button" className="danger-button" onClick={() => clearEvents("year")}>
+              <button type="button" className="danger-button" onClick={() => clearEvents("year")} disabled={busy}>
                 학년도 행사 클리어
               </button>
             </div>
           </div>
 
-          <form className="form-grid" onSubmit={importWorkbook}>
+          <form className="form-grid" onSubmit={previewWorkbook}>
             <label className="wide">
               <span>월별 행사계획 엑셀 업로드</span>
-              <input name="file" type="file" accept=".xlsx,.xlsm" required />
+              <input name="file" type="file" accept=".xlsx,.xlsm" required disabled={busy} />
               <small className="field-help">
-                월별 시트(3월~2월)의 일, 요일, 구분, 시 간, 일 정 제 목, 장 소, 담당자 열을 읽어 현재 일정에 추가합니다. 같은 파일을 다시 올리면 중복
-                추가될 수 있습니다.
+                월별 시트(3월~2월)의 일, 요일, 구분, 시 간, 일 정 제 목, 장 소, 담당자 열을 읽어 옵니다. 미리보기에서 내용을 확인한 뒤 반영하며, 같은
+                파일을 다시 올리면 중복 추가될 수 있으니 확정 전에 검토해 주세요.
               </small>
             </label>
-            <button type="submit" className="primary-button wide">
-              엑셀 업로드 반영
+            <button type="submit" className="secondary-button wide" disabled={busy}>
+              미리보기
             </button>
           </form>
+
+          {importPreview ? (
+            <div className="import-preview wide">
+              <header>
+                <strong>미리보기: {importPreview.count}건</strong>
+                <span>시트 {importPreview.sheets?.join(", ") || "-"}</span>
+              </header>
+              {importPreview.warnings?.length ? (
+                <details className="import-warning-list" open>
+                  <summary>검토 필요 {importPreview.warnings.length}건</summary>
+                  <ul>
+                    {importPreview.warnings.map((warning, index) => (
+                      <li key={index}>{warning}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : (
+                <p className="field-help">검토가 필요한 항목이 없습니다.</p>
+              )}
+              <div className="admin-actions wide">
+                <button type="button" className="ghost-button" onClick={cancelImportPreview} disabled={busy}>
+                  취소
+                </button>
+                <button type="button" className="primary-button" onClick={confirmImportPreview} disabled={busy}>
+                  이 내용으로 반영
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <form className="form-grid" onSubmit={saveHoliday}>
             <label>
@@ -350,7 +438,7 @@ export default function SchoolAdminApp({ slug }) {
               <span>메모</span>
               <input value={holiday.memo} onChange={(event) => setHoliday({ ...holiday, memo: event.target.value })} />
             </label>
-            <button type="submit" className="primary-button wide">
+            <button type="submit" className="primary-button wide" disabled={busy}>
               휴일 저장
             </button>
           </form>

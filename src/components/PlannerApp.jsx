@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getMonthOptions, getPrintRowCount } from "../lib/domain.js";
+import { buildMonthCsv, EVENT_CATEGORY_OPTIONS, getMonthOptions, getPrintRowCount, normalizeBoolean } from "../lib/domain.js";
 
 const blankEvent = {
   date: "",
@@ -322,6 +322,11 @@ function PlannerTable({ monthData, onEdit, onCreate, canEdit }) {
                 {index === 0 ? <HolidayLine day={day} /> : null}
                 {event ? (
                   <button type="button" className="event-title" onClick={() => canEdit && onEdit(event)}>
+                    {normalizeBoolean(event.reviewNeeded) ? (
+                      <span className="review-badge" title="가져오기 시 줄 수가 맞지 않아 검토가 필요합니다">
+                        검토
+                      </span>
+                    ) : null}
                     {event.title}
                   </button>
                 ) : null}
@@ -359,6 +364,7 @@ function MobileCards({ monthData, onEdit, onCreate, canEdit }) {
                 <span>
                   <CategoryPill value={event.category} categories={monthData.categories} />
                   {event.time ? <em>{event.time}</em> : null}
+                  {normalizeBoolean(event.reviewNeeded) ? <span className="review-badge">검토</span> : null}
                 </span>
                 <strong>{event.title}</strong>
                 <small>{[event.place, event.owner].filter(Boolean).join(" · ")}</small>
@@ -572,7 +578,11 @@ function HolidayLine({ day }) {
 
 export function StatusBar({ status, error }) {
   if (!status && !error) return null;
-  return <div className={error ? "status error" : "status"}>{error || status}</div>;
+  return (
+    <div className={error ? "status error" : "status"} role="status" aria-live="polite">
+      {error || status}
+    </div>
+  );
 }
 
 function dayClass(day) {

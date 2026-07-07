@@ -13,6 +13,8 @@ export const EVENT_HEADERS = [
   "createdAt",
   "updatedAt",
   "deletedAt",
+  "reviewNeeded",
+  "importBatchId",
 ];
 
 export const CATEGORY_HEADERS = ["name", "color", "sortOrder", "active"];
@@ -302,7 +304,7 @@ export function parseLegacyRows(rows, { schoolYear, tabTitle }) {
     const lineSources = [categoryLines, timeLines, placeLines, ownerLines];
     const reviewNeeded = lineSources.some((lines) => lines.length > 1 && lines.length !== titles.length);
 
-    if (reviewNeeded) warnings.push(`${tabTitle} ${day}일 행의 줄 수가 맞지 않아 검토가 필요합니다.`);
+    if (reviewNeeded) warnings.push(`${tabTitle} ${day}일 "${titles[0]}" 등 행의 줄 수가 맞지 않아 검토가 필요합니다.`);
 
     titles.forEach((title, index) => {
       const date = toDateKey(new Date(yearMonth.year, yearMonth.month - 1, day));
@@ -319,7 +321,7 @@ export function parseLegacyRows(rows, { schoolYear, tabTitle }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         deletedAt: "",
-        reviewNeeded,
+        reviewNeeded: reviewNeeded ? "TRUE" : "",
       });
     });
     currentSortOrder += titles.length;

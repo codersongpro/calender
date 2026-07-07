@@ -266,7 +266,7 @@ export function quoteSheet(title) {
   return `'${String(title).replaceAll("'", "''")}'`;
 }
 
-function columnLetter(index) {
+export function columnLetter(index) {
   let current = index;
   let result = "";
   while (current > 0) {

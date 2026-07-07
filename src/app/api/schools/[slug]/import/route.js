@@ -13,17 +13,21 @@ export async function POST(request, context) {
       const form = await request.formData();
       const schoolYear = Number(form.get("schoolYear") || getCurrentSchoolYear());
       const parsed = await parseUploadedWorkbook(form.get("file"), { schoolYear });
+      return ok({ mode: "preview", count: parsed.events.length, ...parsed });
+    }
+
+    const body = await readJson(request);
+    if (body.action === "commit-workbook") {
       return ok(
-        await appendImportedEvents(tenant, parsed.events, {
+        await appendImportedEvents(tenant, body.events ?? [], {
           action: "import-workbook",
-          sheets: parsed.sheets,
-          warnings: parsed.warnings,
+          sheets: body.sheets ?? [],
+          warnings: body.warnings ?? [],
         }),
       );
     }
 
-    const { schoolYear } = await readJson(request);
-    return ok(await importLegacyMonthlyTabs(tenant, Number(schoolYear || getCurrentSchoolYear())));
+    return ok(await importLegacyMonthlyTabs(tenant, Number(body.schoolYear || getCurrentSchoolYear())));
   } catch (error) {
     return fail(error);
   }

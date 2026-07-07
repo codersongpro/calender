@@ -18,6 +18,7 @@ import {
 import {
   appendValues,
   clearValues,
+  columnLetter,
   ensureDatabaseSheets,
   getSpreadsheetMetadata,
   getValues,
@@ -27,8 +28,10 @@ import {
 
 const DATA_CACHE_TTL_MS = 30_000;
 const dataCache = new Map();
-const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter((header) => header !== "endDate");
+const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter((header) => header !== "endDate" && header !== "reviewNeeded" && header !== "importBatchId");
 const LEGACY_HOLIDAY_HEADERS = HOLIDAY_HEADERS.filter((header) => header !== "endDate");
+const EVENTS_LAST_COLUMN = columnLetter(EVENT_HEADERS.length);
+const EVENTS_RANGE_ALL = `'Events'!A:${EVENTS_LAST_COLUMN}`;
 
 export async function ensureInstitutionDatabase(config) {
   return ensureDatabaseSheets(config.spreadsheetId);
@@ -48,7 +51,7 @@ export async function syncSettingsSheet(config) {
 
 export async function listEvents(config) {
   await ensureInstitutionDatabase(config);
-  const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
+  const rows = await getValues(config.spreadsheetId, EVENTS_RANGE_ALL);
   return eventsFromRows(rows);
 }
 
@@ -94,32 +97,34 @@ export async function createEvent(config, input) {
     createdAt: now,
     updatedAt: now,
     deletedAt: "",
+    reviewNeeded: "",
+    importBatchId: "",
   };
-  await appendValues(config.spreadsheetId, "'Events'!A2:L", [objectToRow(event, EVENT_HEADERS)]);
+  await appendValues(config.spreadsheetId, `'Events'!A2:${EVENTS_LAST_COLUMN}`, [objectToRow(event, EVENT_HEADERS)]);
   await logEdit(config, "create", event.id, "", event);
   clearInstitutionDataCache(config.spreadsheetId);
   return event;
 }
 
 export async function updateEvent(config, id, input) {
-  const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
+  const rows = await getValues(config.spreadsheetId, EVENTS_RANGE_ALL);
   const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id, LEGACY_EVENT_HEADERS, isLegacyEventRow);
   const updated = {
     ...object,
     ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder"].map((key) => [key, input[key] ?? object[key] ?? ""])),
     updatedAt: new Date().toISOString(),
   };
-  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:L${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);
+  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:${EVENTS_LAST_COLUMN}${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);
   await logEdit(config, "update", id, object, updated);
   clearInstitutionDataCache(config.spreadsheetId);
   return updated;
 }
 
 export async function deleteEvent(config, id) {
-  const rows = await getValues(config.spreadsheetId, "'Events'!A:L");
+  const rows = await getValues(config.spreadsheetId, EVENTS_RANGE_ALL);
   const { object, rowNumber } = findRowById(rows, EVENT_HEADERS, id, LEGACY_EVENT_HEADERS, isLegacyEventRow);
   const deleted = { ...object, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:L${rowNumber}`, [objectToRow(deleted, EVENT_HEADERS)]);
+  await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:${EVENTS_LAST_COLUMN}${rowNumber}`, [objectToRow(deleted, EVENT_HEADERS)]);
   await logEdit(config, "delete", id, object, deleted);
   clearInstitutionDataCache(config.spreadsheetId);
   return deleted;
@@ -132,14 +137,14 @@ export async function clearEventsInRange(config, input, deps = {}) {
   const writeLog = deps.logEdit ?? logEdit;
   const clearCache = deps.clearInstitutionDataCache ?? clearInstitutionDataCache;
   const bounds = getClearBounds(input);
-  const rows = await readValues(config.spreadsheetId, "'Events'!A:L");
+  const rows = await readValues(config.spreadsheetId, EVENTS_RANGE_ALL);
   const events = eventsFromRows(rows);
   const remaining = events.filter((event) => !event.date || !isItemInRange(event, bounds.start, bounds.end));
   const removedCount = events.length - remaining.length;
   const nextRows = [EVENT_HEADERS, ...remaining.map((event) => objectToRow(event, EVENT_HEADERS))];
 
-  await clearRows(config.spreadsheetId, "'Events'!A:L");
-  await writeRows(config.spreadsheetId, `'Events'!A1:L${nextRows.length}`, nextRows);
+  await clearRows(config.spreadsheetId, EVENTS_RANGE_ALL);
+  await writeRows(config.spreadsheetId, `'Events'!A1:${EVENTS_LAST_COLUMN}${nextRows.length}`, nextRows);
   await writeLog(config, input.scope === "year" ? "clear-year" : "clear-month", "", "", { ...bounds, count: removedCount });
   clearCache(config.spreadsheetId);
   return { count: removedCount, ...bounds };
@@ -196,22 +201,53 @@ export async function appendImportedEvents(config, imported, meta = {}, deps = {
   const appendRows = deps.appendValues ?? appendValues;
   const writeLog = deps.logEdit ?? logEdit;
   const clearCache = deps.clearInstitutionDataCache ?? clearInstitutionDataCache;
-  const events = imported ?? [];
+  const makeBatchId = deps.makeId ?? makeId;
   const warnings = meta.warnings ?? [];
   const sheets = meta.sheets ?? [];
   const action = meta.action ?? "import-workbook";
+  const batchId = meta.batchId || (imported?.length ? makeBatchId("batch") : "");
+  const events = (imported ?? []).map((event) => ({ ...event, importBatchId: batchId }));
 
   await ensureDb(config);
   if (events.length > 0) {
     await appendRows(
       config.spreadsheetId,
-      "'Events'!A2:L",
+      `'Events'!A2:${EVENTS_LAST_COLUMN}`,
       events.map((event) => objectToRow(event, EVENT_HEADERS)),
     );
   }
-  await writeLog(config, action, "", "", { count: events.length, sheets, warnings });
+  await writeLog(config, action, "", "", { count: events.length, sheets, warnings, batchId });
   clearCache(config.spreadsheetId);
-  return { count: events.length, sheets, warnings };
+  return { count: events.length, sheets, warnings, batchId };
+}
+
+export async function undoImportBatch(config, batchId, deps = {}) {
+  const readValues = deps.getValues ?? getValues;
+  const clearRows = deps.clearValues ?? clearValues;
+  const writeRows = deps.updateValues ?? updateValues;
+  const writeLog = deps.logEdit ?? logEdit;
+  const clearCache = deps.clearInstitutionDataCache ?? clearInstitutionDataCache;
+
+  if (!String(batchId ?? "").trim()) throw new Error("취소할 가져오기를 찾을 수 없습니다.");
+
+  const rows = await readValues(config.spreadsheetId, EVENTS_RANGE_ALL);
+  const events = eventsFromRows(rows);
+  const now = new Date().toISOString();
+  let removedCount = 0;
+  const updated = events.map((event) => {
+    if (event.importBatchId !== batchId || event.deletedAt) return event;
+    removedCount += 1;
+    return { ...event, deletedAt: now, updatedAt: now };
+  });
+
+  if (removedCount === 0) throw new Error("이미 취소되었거나 해당 가져오기 내역을 찾을 수 없습니다.");
+
+  const nextRows = [EVENT_HEADERS, ...updated.map((event) => objectToRow(event, EVENT_HEADERS))];
+  await clearRows(config.spreadsheetId, EVENTS_RANGE_ALL);
+  await writeRows(config.spreadsheetId, `'Events'!A1:${EVENTS_LAST_COLUMN}${nextRows.length}`, nextRows);
+  await writeLog(config, "undo-import", "", "", { batchId, count: removedCount });
+  clearCache(config.spreadsheetId);
+  return { count: removedCount };
 }
 
 export async function importLegacyMonthlyTabs(config, schoolYear) {
@@ -250,7 +286,7 @@ async function getInstitutionData(config, options = {}) {
 
   const readValues = options.getValues ?? getValues;
   const [eventRows, holidayRows, categoryRows] = await Promise.all([
-    readValues(spreadsheetId, "'Events'!A:L"),
+    readValues(spreadsheetId, EVENTS_RANGE_ALL),
     readValues(spreadsheetId, "'Holidays'!A:J"),
     readValues(spreadsheetId, "'Categories'!A:D"),
   ]);
