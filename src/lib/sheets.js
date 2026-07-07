@@ -45,18 +45,30 @@ export async function getSpreadsheetMetadata(spreadsheetId) {
 
 export async function ensureDatabaseSheets(spreadsheetId) {
   const metadata = await getSpreadsheetMetadata(spreadsheetId);
-  const existingTitles = new Set(metadata.sheets?.map((sheet) => sheet.properties.title) ?? []);
+  const existingSheets = new Map((metadata.sheets ?? []).map((sheet) => [sheet.properties.title, sheet.properties]));
   const requests = [];
 
   for (const title of Object.keys(DB_SHEETS)) {
-    if (!existingTitles.has(title)) {
+    const neededColumns = Math.max(DB_SHEETS[title].length, 8);
+    const existing = existingSheets.get(title);
+    if (!existing) {
       requests.push({
         addSheet: {
           properties: {
             title,
             hidden: title !== "Settings",
-            gridProperties: { rowCount: 1000, columnCount: Math.max(DB_SHEETS[title].length, 8) },
+            gridProperties: { rowCount: 1000, columnCount: neededColumns },
           },
+        },
+      });
+    } else if ((existing.gridProperties?.columnCount ?? 0) < neededColumns) {
+      requests.push({
+        updateSheetProperties: {
+          properties: {
+            sheetId: existing.sheetId,
+            gridProperties: { columnCount: neededColumns },
+          },
+          fields: "gridProperties.columnCount",
         },
       });
     }
