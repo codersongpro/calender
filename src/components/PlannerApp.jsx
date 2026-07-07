@@ -345,7 +345,7 @@ export default function PlannerApp({ slug }) {
           </select>
         </label>
         {!config.canEdit ? (
-          <PasswordUnlock label="편집 비밀번호" buttonLabel="편집 열기" onSubmit={(password) => unlock("edit", password)} />
+          <PasswordUnlock label="편집 비밀번호" buttonLabel="편집권한부여" onSubmit={(password) => unlock("edit", password)} />
         ) : null}
         <label>
           <span>인쇄 용지</span>
