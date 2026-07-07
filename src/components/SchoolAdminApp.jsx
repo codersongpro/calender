@@ -16,6 +16,7 @@ export default function SchoolAdminApp({ slug }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
+  const [pendingImportFile, setPendingImportFile] = useState(null);
   const [lastImport, setLastImport] = useState(null);
   const monthOptions = getMonthOptions(schoolYear);
 
@@ -125,6 +126,7 @@ export default function SchoolAdminApp({ slug }) {
     });
     if (data) {
       setImportPreview(data);
+      setPendingImportFile(file);
       const warningText = data.warnings?.length ? ` 검토 필요 ${data.warnings.length}건을 확인해 주세요.` : "";
       setStatus(`미리보기: ${data.count}개 일정을 찾았습니다.${warningText} 내용을 확인한 뒤 아래에서 반영하세요.`);
     }
@@ -132,23 +134,24 @@ export default function SchoolAdminApp({ slug }) {
 
   function cancelImportPreview() {
     setImportPreview(null);
+    setPendingImportFile(null);
     setStatus("");
   }
 
   async function confirmImportPreview() {
-    if (!importPreview) return;
+    if (!importPreview || !pendingImportFile) return;
+    const formData = new FormData();
+    formData.set("file", pendingImportFile);
+    formData.set("schoolYear", String(schoolYear));
+    formData.set("commit", "true");
     const data = await request(`${basePath}/import`, {
       method: "POST",
-      body: {
-        action: "commit-workbook",
-        events: importPreview.events,
-        sheets: importPreview.sheets,
-        warnings: importPreview.warnings,
-      },
+      formData,
       label: "엑셀 파일을 가져왔습니다.",
     });
     if (data) {
       setImportPreview(null);
+      setPendingImportFile(null);
       notifyPlannerChanged(slug);
       if (data.batchId) setLastImport({ batchId: data.batchId, count: data.count });
       const warningText = data.warnings?.length ? ` 검토 필요 ${data.warnings.length}건이 있습니다.` : "";
