@@ -326,7 +326,7 @@ export default function PlannerApp({ slug }) {
             다운로드
           </button>
           {!installed ? (
-            <button type="button" className="ghost-button" onClick={addShortcut}>
+            <button type="button" className="highlight-button" onClick={addShortcut}>
               바로가기 추가
             </button>
           ) : null}
