@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 
-import { ensureDatabaseSheets, formatGoogleSheetsApiError, normalizePrivateKey } from "../src/lib/sheets.js";
+import { batchGetValues, ensureDatabaseSheets, formatGoogleSheetsApiError, normalizePrivateKey } from "../src/lib/sheets.js";
 
 const PEM_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
 
@@ -109,4 +109,54 @@ test("ensureDatabaseSheets grows an existing sheet's column count before syncing
     (req) => req.updateSheetProperties && req.updateSheetProperties.properties.sheetId !== 1,
   );
   assert.equal(growOthers.length, 0, "sheets that already have enough columns should be left alone");
+});
+
+test("batchGetValues reads multiple ranges in a single request and preserves range order", async (t) => {
+  const { privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "test@example.com";
+  process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = privateKey;
+
+  const requestedUrls = [];
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const href = String(url);
+    requestedUrls.push(href);
+    if (href.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, json: async () => ({ access_token: "fake-token", expires_in: 3600 }) };
+    }
+    if (href.includes(":batchGet")) {
+      return {
+        ok: true,
+        json: async () => ({
+          spreadsheetId: "sheet_y",
+          valueRanges: [
+            { range: "Events!A:O", values: [["evt_1"]] },
+            { range: "Holidays!A:J" },
+            { range: "Categories!A:D", values: [["행사"]] },
+          ],
+        }),
+      };
+    }
+    throw new Error(`unexpected fetch ${href}`);
+  };
+
+  t.after(() => {
+    global.fetch = originalFetch;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  });
+
+  const result = await batchGetValues("sheet_y", ["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]);
+
+  assert.deepEqual(result, [[["evt_1"]], [], [["행사"]]]);
+
+  const batchGetUrl = requestedUrls.find((url) => url.includes(":batchGet"));
+  assert.ok(batchGetUrl, "expected a single :batchGet request");
+  assert.match(batchGetUrl, /ranges=.*Events.*A%3AO/);
+  assert.match(batchGetUrl, /ranges=.*Holidays.*A%3AJ/);
+  assert.match(batchGetUrl, /ranges=.*Categories.*A%3AD/);
+  assert.equal(requestedUrls.filter((url) => url.includes(":batchGet")).length, 1);
 });

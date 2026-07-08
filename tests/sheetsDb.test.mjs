@@ -3,57 +3,63 @@ import test from "node:test";
 
 import { appendImportedEvents, clearEventsInRange, getMonthData, undoImportBatch } from "../src/lib/sheetsDb.js";
 
-test("month loading reads each data sheet once without re-validating sheet schema", async () => {
+function mockBatchGet(rangeData) {
+  return async (_spreadsheetId, ranges) =>
+    ranges.map((range) => {
+      if (range in rangeData) return rangeData[range];
+      throw new Error(`unexpected range ${range}`);
+    });
+}
+
+test("month loading reads every data sheet in a single batched request", async () => {
   const calls = [];
+  const baseBatchGet = mockBatchGet({
+    "'Events'!A:O": [
+      ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
+      ["evt_1", "2026-07-01", "", "행사", "", "월례회", "회의실", "교무", "1", "", "", ""],
+    ],
+    "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+    "'Categories'!A:D": [
+      ["name", "color", "sortOrder", "active"],
+      ["행사", "#2563eb", "10", "TRUE"],
+    ],
+  });
   const data = await getMonthData(
     { orgName: "학성초등학교", spreadsheetId: "sheet_1" },
     { year: 2026, month: 7 },
     {
       cacheTtlMs: 0,
-      getValues: async (_spreadsheetId, range) => {
-        calls.push(range);
-        if (range === "'Events'!A:O") {
-          return [
-            ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
-            ["evt_1", "2026-07-01", "", "행사", "", "월례회", "회의실", "교무", "1", "", "", ""],
-          ];
-        }
-        if (range === "'Holidays'!A:J") {
-          return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
-        }
-        if (range === "'Categories'!A:D") {
-          return [
-            ["name", "color", "sortOrder", "active"],
-            ["행사", "#2563eb", "10", "TRUE"],
-          ];
-        }
-        throw new Error(`unexpected range ${range}`);
+      batchGetValues: async (spreadsheetId, ranges) => {
+        calls.push(ranges);
+        return baseBatchGet(spreadsheetId, ranges);
       },
     },
   );
 
-  assert.deepEqual(calls, ["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]);
+  assert.deepEqual(calls, [["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]]);
   assert.equal(data.days[0].events[0].title, "월례회");
 });
 
 test("month loading reuses a short-lived sheet data cache for fast month changes", async () => {
   const calls = [];
+  const baseBatchGet = mockBatchGet({
+    "'Events'!A:O": [["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]],
+    "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+    "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
+  });
   const deps = {
     now: () => 1000,
     cacheTtlMs: 30_000,
-    getValues: async (_spreadsheetId, range) => {
-      calls.push(range);
-      if (range === "'Events'!A:O") return [["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]];
-      if (range === "'Holidays'!A:J") return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
-      if (range === "'Categories'!A:D") return [["name", "color", "sortOrder", "active"]];
-      throw new Error(`unexpected range ${range}`);
+    batchGetValues: async (spreadsheetId, ranges) => {
+      calls.push(ranges);
+      return baseBatchGet(spreadsheetId, ranges);
     },
   };
 
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 7 }, deps);
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 8 }, deps);
 
-  assert.deepEqual(calls, ["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]);
+  assert.deepEqual(calls, [["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]]);
 });
 
 test("month loading preserves workbook imports saved before the endDate column existed", async () => {
@@ -62,21 +68,14 @@ test("month loading preserves workbook imports saved before the endDate column e
     { year: 2026, month: 7 },
     {
       cacheTtlMs: 0,
-      getValues: async (_spreadsheetId, range) => {
-        if (range === "'Events'!A:O") {
-          return [
-            ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
-            ["evt_old", "2026-07-03", "행사", "09:00", "업로드 행사", "강당", "교무부", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
-          ];
-        }
-        if (range === "'Holidays'!A:J") {
-          return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
-        }
-        if (range === "'Categories'!A:D") {
-          return [["name", "color", "sortOrder", "active"]];
-        }
-        throw new Error(`unexpected range ${range}`);
-      },
+      batchGetValues: mockBatchGet({
+        "'Events'!A:O": [
+          ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
+          ["evt_old", "2026-07-03", "행사", "09:00", "업로드 행사", "강당", "교무부", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
+        ],
+        "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+        "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
+      }),
     },
   );
 
@@ -105,21 +104,14 @@ test("month loading preserves legacy workbook rows with blank categories", async
     { year: 2026, month: 7 },
     {
       cacheTtlMs: 0,
-      getValues: async (_spreadsheetId, range) => {
-        if (range === "'Events'!A:O") {
-          return [
-            ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
-            ["evt_old_blank", "2026-07-03", "", "15:00-16:30", "1학기 담당장학 및 과학실 안전 점검", "3학년 교실, 과학실", "김다래, 송동석", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
-          ];
-        }
-        if (range === "'Holidays'!A:J") {
-          return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
-        }
-        if (range === "'Categories'!A:D") {
-          return [["name", "color", "sortOrder", "active"]];
-        }
-        throw new Error(`unexpected range ${range}`);
-      },
+      batchGetValues: mockBatchGet({
+        "'Events'!A:O": [
+          ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
+          ["evt_old_blank", "2026-07-03", "", "15:00-16:30", "1학기 담당장학 및 과학실 안전 점검", "3학년 교실, 과학실", "김다래, 송동석", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
+        ],
+        "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+        "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
+      }),
     },
   );
 
@@ -136,21 +128,14 @@ test("month loading surfaces rows whose dates were coerced to Sheets serial numb
     { year: 2026, month: 9 },
     {
       cacheTtlMs: 0,
-      getValues: async (_spreadsheetId, range) => {
-        if (range === "'Events'!A:O") {
-          return [
-            ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
-            ["evt_serial", "46266", "", "", "", "9월~ 기초학력 진단 집중의 달", "", "", "1", "", "", "", "", "batch_1"],
-          ];
-        }
-        if (range === "'Holidays'!A:J") {
-          return [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]];
-        }
-        if (range === "'Categories'!A:D") {
-          return [["name", "color", "sortOrder", "active"]];
-        }
-        throw new Error(`unexpected range ${range}`);
-      },
+      batchGetValues: mockBatchGet({
+        "'Events'!A:O": [
+          ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
+          ["evt_serial", "46266", "", "", "", "9월~ 기초학력 진단 집중의 달", "", "", "1", "", "", "", "", "batch_1"],
+        ],
+        "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+        "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
+      }),
     },
   );
 

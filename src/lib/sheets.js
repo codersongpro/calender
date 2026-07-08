@@ -101,6 +101,18 @@ export async function getValues(spreadsheetId, range) {
   return response.values ?? [];
 }
 
+// Fetches multiple ranges in a single Sheets API read request instead of one
+// request per range, so reading N sheets only counts once against the
+// per-minute read quota. Returns rows for each range in the same order the
+// ranges were passed in (the API preserves request order in valueRanges).
+export async function batchGetValues(spreadsheetId, ranges) {
+  const params = ranges.map((range) => `ranges=${encodeURIComponent(range)}`).join("&");
+  const response = await sheetsRequest(
+    `${API_BASE}/${spreadsheetId}/values:batchGet?${params}&valueRenderOption=FORMATTED_VALUE`,
+  );
+  return (response.valueRanges ?? []).map((valueRange) => valueRange.values ?? []);
+}
+
 export async function updateValues(spreadsheetId, range, values) {
   return sheetsRequest(`${API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, {
     method: "PUT",

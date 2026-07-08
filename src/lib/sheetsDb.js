@@ -18,6 +18,7 @@ import {
 } from "./domain.js";
 import {
   appendValues,
+  batchGetValues,
   clearValues,
   columnLetter,
   ensureDatabaseSheets,
@@ -288,11 +289,11 @@ async function getInstitutionData(config, options = {}) {
   const cached = dataCache.get(spreadsheetId);
   if (cacheTtlMs > 0 && cached && now - cached.createdAt < cacheTtlMs) return cached.data;
 
-  const readValues = options.getValues ?? getValues;
-  const [eventRows, holidayRows, categoryRows] = await Promise.all([
-    readValues(spreadsheetId, EVENTS_RANGE_ALL),
-    readValues(spreadsheetId, "'Holidays'!A:J"),
-    readValues(spreadsheetId, "'Categories'!A:D"),
+  const readBatch = options.batchGetValues ?? batchGetValues;
+  const [eventRows, holidayRows, categoryRows] = await readBatch(spreadsheetId, [
+    EVENTS_RANGE_ALL,
+    "'Holidays'!A:J",
+    "'Categories'!A:D",
   ]);
 
   const data = {
