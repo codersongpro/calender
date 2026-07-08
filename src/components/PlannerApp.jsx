@@ -51,38 +51,6 @@ export default function PlannerApp({ slug }) {
   }, [basePath]);
 
   useEffect(() => {
-    const manifestUrl = `${basePath}/manifest`;
-    const manifestLink = document.querySelector('link[rel="manifest"]') || document.createElement("link");
-    manifestLink.rel = "manifest";
-    manifestLink.href = manifestUrl;
-    if (!manifestLink.isConnected) document.head.appendChild(manifestLink);
-
-    const appleIcon = document.querySelector('link[rel="apple-touch-icon"]') || document.createElement("link");
-    appleIcon.rel = "apple-touch-icon";
-    appleIcon.href = "/apple-touch-icon.png";
-    if (!appleIcon.isConnected) document.head.appendChild(appleIcon);
-
-    const themeColor = document.querySelector('meta[name="theme-color"]') || document.createElement("meta");
-    themeColor.name = "theme-color";
-    themeColor.content = "#1d6f8f";
-    if (!themeColor.isConnected) document.head.appendChild(themeColor);
-
-    const appleCapable = document.querySelector('meta[name="apple-mobile-web-app-capable"]') || document.createElement("meta");
-    appleCapable.name = "apple-mobile-web-app-capable";
-    appleCapable.content = "yes";
-    if (!appleCapable.isConnected) document.head.appendChild(appleCapable);
-  }, [basePath]);
-
-  useEffect(() => {
-    const orgName = monthData?.config?.orgName || config?.orgName;
-    if (!orgName) return;
-    const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
-    appleTitle.name = "apple-mobile-web-app-title";
-    appleTitle.content = orgName;
-    if (!appleTitle.isConnected) document.head.appendChild(appleTitle);
-  }, [monthData?.config?.orgName, config?.orgName]);
-
-  useEffect(() => {
     const paper = getPrintPaper(paperSize);
     const contentHeightMm = getPrintContentHeightMm(paperSize);
     const styleTag = document.getElementById("print-paper-style") || document.createElement("style");
@@ -488,7 +456,11 @@ function MemoDialog({ event, onClose }) {
 
 function InstallHelpDialog({ onClose }) {
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
-  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  // iPadOS reports itself as "Macintosh" by default; the touch-point check is
+  // Apple's own recommended way to still catch it as iOS for cases like this.
+  const isIOS =
+    /iphone|ipad|ipod/i.test(ua) ||
+    (typeof navigator !== "undefined" && navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const isAndroid = /android/i.test(ua);
 
   return (
