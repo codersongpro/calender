@@ -305,6 +305,27 @@ export function splitDaysForPrint(days, pageCount) {
   return pages.filter((group) => group.length > 0);
 }
 
+export const PRINT_MARGIN_MM = 5;
+
+export const PRINT_PAPER_SIZES = {
+  A4: { label: "A4", widthMm: 210, heightMm: 297 },
+  A3: { label: "A3", widthMm: 297, heightMm: 420 },
+  B4: { label: "B4", widthMm: 257, heightMm: 364 },
+  LETTER: { label: "Letter", widthMm: 215.9, heightMm: 279.4 },
+  LEGAL: { label: "Legal", widthMm: 215.9, heightMm: 355.6 },
+};
+
+export function getPrintPaper(paperKey) {
+  return PRINT_PAPER_SIZES[paperKey] || PRINT_PAPER_SIZES.A4;
+}
+
+// Usable page height once top/bottom print margins are subtracted; this is
+// what --print-page-height should be set to so rows scale to fill exactly
+// one sheet of the selected paper.
+export function getPrintContentHeightMm(paperKey) {
+  return getPrintPaper(paperKey).heightMm - PRINT_MARGIN_MM * 2;
+}
+
 export function makeId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }

@@ -6,8 +6,12 @@ import {
   buildMonthCsv,
   EVENT_CATEGORY_OPTIONS,
   getMonthOptions,
+  getPrintContentHeightMm,
+  getPrintPaper,
   getRowCountForDays,
   normalizeBoolean,
+  PRINT_MARGIN_MM,
+  PRINT_PAPER_SIZES,
   splitDaysForPrint,
 } from "../lib/domain.js";
 
@@ -34,6 +38,7 @@ export default function PlannerApp({ slug }) {
   const [editingEventId, setEditingEventId] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
   const [printPages, setPrintPages] = useState(1);
+  const [paperSize, setPaperSize] = useState("A4");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
@@ -76,6 +81,22 @@ export default function PlannerApp({ slug }) {
     appleTitle.content = orgName;
     if (!appleTitle.isConnected) document.head.appendChild(appleTitle);
   }, [monthData?.config?.orgName, config?.orgName]);
+
+  useEffect(() => {
+    const paper = getPrintPaper(paperSize);
+    const contentHeightMm = getPrintContentHeightMm(paperSize);
+    const styleTag = document.getElementById("print-paper-style") || document.createElement("style");
+    styleTag.id = "print-paper-style";
+    // Overrides globals.css's default A4 @page/--print-page-height (later in
+    // source order wins for equal-specificity rules), so every paper size
+    // shares the same row-height/font-size scaling logic instead of relying
+    // on the browser's own size keyword tables.
+    styleTag.textContent = `
+      @page { size: ${paper.widthMm}mm ${paper.heightMm}mm; margin: ${PRINT_MARGIN_MM}mm; }
+      @media print { :root { --print-page-height: ${contentHeightMm}mm; } }
+    `;
+    if (!styleTag.isConnected) document.head.appendChild(styleTag);
+  }, [paperSize]);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -356,7 +377,17 @@ export default function PlannerApp({ slug }) {
           />
         ) : null}
         <label>
-          <span>인쇄 용지</span>
+          <span>용지 크기</span>
+          <select value={paperSize} onChange={(event) => setPaperSize(event.target.value)}>
+            {Object.entries(PRINT_PAPER_SIZES).map(([key, paper]) => (
+              <option key={key} value={key}>
+                {paper.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>인쇄 페이지</span>
           <select value={printPages} onChange={(event) => setPrintPages(Number(event.target.value))}>
             <option value={1}>1페이지에 맞추기</option>
             <option value={2}>2페이지로 나누기</option>

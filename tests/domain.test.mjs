@@ -6,12 +6,14 @@ import {
   buildMonthView,
   calculateHolidayClusters,
   EVENT_CATEGORY_OPTIONS,
+  getPrintContentHeightMm,
   getPrintRowCount,
   getMonthOptions,
   getRowCountForDays,
   getSchoolYearRange,
   normalizeSheetDate,
   parseLegacyRows,
+  PRINT_MARGIN_MM,
   splitDaysForPrint,
 } from "../src/lib/domain.js";
 import { hashPassword, verifyPassword } from "../src/lib/security.js";
@@ -427,5 +429,17 @@ test("splitDaysForPrint keeps at least one day per page even with more pages tha
   const pages = splitDaysForPrint(days, 5);
   assert.equal(pages.length, 2);
   assert.deepEqual(pages.flat(), days);
+});
+
+test("getPrintContentHeightMm subtracts print margins from each paper's height", () => {
+  assert.equal(getPrintContentHeightMm("A4"), 297 - PRINT_MARGIN_MM * 2);
+  assert.equal(getPrintContentHeightMm("A3"), 420 - PRINT_MARGIN_MM * 2);
+  assert.equal(getPrintContentHeightMm("B4"), 364 - PRINT_MARGIN_MM * 2);
+  assert.ok(getPrintContentHeightMm("A3") > getPrintContentHeightMm("A4"));
+});
+
+test("getPrintContentHeightMm falls back to A4 for an unknown paper key", () => {
+  assert.equal(getPrintContentHeightMm("NOT_A_PAPER"), getPrintContentHeightMm("A4"));
+  assert.equal(getPrintContentHeightMm(undefined), getPrintContentHeightMm("A4"));
 });
 
