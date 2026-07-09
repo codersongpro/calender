@@ -123,6 +123,20 @@ h2 {
   color: #ffffff;
 }
 
+/* A <label> wrapping a hidden file input, dressed as a button - labels are
+   inline by default, so without this the text won't center like its
+   sibling <button>s. */
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.file-button.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .secondary-button,
 .secondary-link {
   background: #e7f2f6;

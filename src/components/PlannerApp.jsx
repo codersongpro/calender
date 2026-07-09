@@ -39,6 +39,7 @@ export default function PlannerApp({ slug }) {
   const [eventDraft, setEventDraft] = useState(blankEvent);
   const [editingEventId, setEditingEventId] = useState("");
   const [showEventForm, setShowEventForm] = useState(false);
+  const [savingEvent, setSavingEvent] = useState(false);
   const [printPages, setPrintPages] = useState(1);
   const [paperSize, setPaperSize] = useState("A4");
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -315,17 +316,26 @@ export default function PlannerApp({ slug }) {
 
   async function submitEvent(event) {
     event.preventDefault();
-    const url = editingEventId ? `${basePath}/events/${editingEventId}` : `${basePath}/events`;
-    const method = editingEventId ? "PATCH" : "POST";
-    const data = await request(url, {
-      method,
-      body: eventDraft,
-      label: editingEventId ? "행사를 수정했습니다." : "행사를 추가했습니다.",
-    });
-    if (data) {
-      setShowEventForm(false);
-      await loadConfig();
-      await loadMonth();
+    // A second click while the first request is in flight would create the
+    // same event twice - the dialog's buttons are also disabled via this
+    // flag, but guard here too in case submit arrives from the Enter key.
+    if (savingEvent) return;
+    setSavingEvent(true);
+    try {
+      const url = editingEventId ? `${basePath}/events/${editingEventId}` : `${basePath}/events`;
+      const method = editingEventId ? "PATCH" : "POST";
+      const data = await request(url, {
+        method,
+        body: eventDraft,
+        label: editingEventId ? "행사를 수정했습니다." : "행사를 추가했습니다.",
+      });
+      if (data) {
+        setShowEventForm(false);
+        await loadConfig();
+        await loadMonth();
+      }
+    } finally {
+      setSavingEvent(false);
     }
   }
 
@@ -339,14 +349,19 @@ export default function PlannerApp({ slug }) {
   }
 
   async function deleteCurrentEvent() {
-    if (!editingEventId) return;
-    const data = await request(`${basePath}/events/${editingEventId}`, {
-      method: "DELETE",
-      label: "행사를 삭제했습니다.",
-    });
-    if (data) {
-      setShowEventForm(false);
-      await loadMonth();
+    if (!editingEventId || savingEvent) return;
+    setSavingEvent(true);
+    try {
+      const data = await request(`${basePath}/events/${editingEventId}`, {
+        method: "DELETE",
+        label: "행사를 삭제했습니다.",
+      });
+      if (data) {
+        setShowEventForm(false);
+        await loadMonth();
+      }
+    } finally {
+      setSavingEvent(false);
     }
   }
 
@@ -534,6 +549,7 @@ export default function PlannerApp({ slug }) {
           categories={monthData?.categories || []}
           editing={Boolean(editingEventId)}
           canDelete={Boolean(editingEventId)}
+          saving={savingEvent}
           onSubmit={submitEvent}
           onDelete={deleteCurrentEvent}
           onClose={() => setShowEventForm(false)}
@@ -737,7 +753,7 @@ function MobileCards({ days, categories, onEdit, onCreate, onDismissReview, onSh
   );
 }
 
-function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit, onDelete, onClose }) {
+function EventDialog({ draft, setDraft, categories, editing, canDelete, saving, onSubmit, onDelete, onClose }) {
   const categoryNames = categories.map((category) => category.name);
   // Explicit state, decided once when the dialog opens (the dialog is
   // mounted fresh per open) - deriving it from the current value would flip
@@ -846,25 +862,25 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           {confirmDelete ? (
             <div className="dialog-actions wide delete-confirm">
               <span className="delete-confirm-text">정말 삭제하시겠습니까? 되돌릴 수 없습니다.</span>
-              <button type="button" className="ghost-button" onClick={() => setConfirmDelete(false)}>
+              <button type="button" className="ghost-button" onClick={() => setConfirmDelete(false)} disabled={saving}>
                 취소
               </button>
-              <button type="button" className="danger-button" onClick={onDelete}>
-                삭제 확인
+              <button type="button" className="danger-button" onClick={onDelete} disabled={saving}>
+                {saving ? "삭제 중..." : "삭제 확인"}
               </button>
             </div>
           ) : (
             <div className="dialog-actions wide">
               {canDelete ? (
-                <button type="button" className="danger-button" onClick={() => setConfirmDelete(true)}>
+                <button type="button" className="danger-button" onClick={() => setConfirmDelete(true)} disabled={saving}>
                   삭제
                 </button>
               ) : null}
-              <button type="button" className="ghost-button" onClick={onClose}>
+              <button type="button" className="ghost-button" onClick={onClose} disabled={saving}>
                 취소
               </button>
-              <button type="submit" className="primary-button">
-                저장
+              <button type="submit" className="primary-button" disabled={saving}>
+                {saving ? "저장 중..." : "저장"}
               </button>
             </div>
           )}
@@ -906,7 +922,11 @@ function formatTimeRange(start, end) {
   const trimmedStart = String(start ?? "").trim();
   const trimmedEnd = String(end ?? "").trim();
   if (trimmedStart && trimmedEnd) return `${trimmedStart}~${trimmedEnd}`;
-  return trimmedStart || trimmedEnd;
+  // Keep the leading "~" for an end-only time so "~16:30" reads as "until
+  // 16:30" instead of looking like a start time. A start-only time is
+  // naturally just "09:00" (the event begins then), so it needs no marker.
+  if (trimmedEnd) return `~${trimmedEnd}`;
+  return trimmedStart;
 }
 
 function TimeInput({ value, onChange }) {

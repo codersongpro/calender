@@ -62,6 +62,21 @@ test("blank rows get their own smaller font instead of reusing the full row's fo
   assert.match(printCss, /\.print-row-blank[\s\S]*?font-size:\s*var\(--print-font-size-blank\);/);
 });
 
+test("print title occupies exactly its budgeted height so it can't push the last row off the page", async () => {
+  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const printCss = css.slice(css.indexOf("@media print"));
+
+  // The row-height math subtracts --print-title-height from the page; if the
+  // title's real height can exceed that budget (e.g. the h2's browser-default
+  // ~20px margins, which caused the original "31일 잘림" bug), the whole table
+  // shifts down and the last day's row is clipped by overflow: hidden.
+  assert.match(printCss, /\.print-title\s*{[^}]*height:\s*var\(--print-title-height\);/s);
+  assert.match(printCss, /\.print-title\s*{[^}]*max-height:\s*var\(--print-title-height\);/s);
+  assert.match(printCss, /\.print-title\s*{[^}]*overflow:\s*hidden;/s);
+  assert.match(printCss, /\.print-title h2\s*{[^}]*margin:\s*0;/s);
+  assert.match(printCss, /\.print-title p\s*{[^}]*margin:\s*0;/s);
+});
+
 test("print title is enlarged and no cell text is ever ellipsis-truncated", async () => {
   const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
   const printCss = css.slice(css.indexOf("@media print"));

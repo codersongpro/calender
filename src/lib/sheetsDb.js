@@ -232,6 +232,62 @@ export async function appendImportedEvents(config, imported, meta = {}, deps = {
   return { count: events.length, sheets, warnings, batchId };
 }
 
+// Replaces the Events/Holidays/Categories sheets with the contents of a
+// backup file downloaded from the 자료 백업 button. Destructive by design -
+// the caller (admin UI) is responsible for confirming with the user first.
+export async function restoreInstitutionData(config, backup, deps = {}) {
+  const ensureDb = deps.ensureInstitutionDatabase ?? ensureInstitutionDatabase;
+  const clearRows = deps.clearValues ?? clearValues;
+  const writeRows = deps.updateValues ?? updateValues;
+  const writeLog = deps.logEdit ?? logEdit;
+  const clearCache = deps.clearInstitutionDataCache ?? clearInstitutionDataCache;
+
+  const events = backup?.events;
+  const holidays = backup?.holidays;
+  const categories = backup?.categories;
+  if (!Array.isArray(events) || !Array.isArray(holidays) || !Array.isArray(categories)) {
+    throw new Error("백업 파일 형식이 올바르지 않습니다. 자료 백업 버튼으로 내려받은 파일을 선택해 주세요.");
+  }
+  if (events.some((event) => !event?.id || !event?.date)) {
+    throw new Error("백업 파일의 일정 항목이 손상되었습니다. 다른 백업 파일을 선택해 주세요.");
+  }
+
+  await ensureDb(config);
+
+  const eventRows = [EVENT_HEADERS, ...events.map((event) => objectToRow(serializeSheetValues(event), EVENT_HEADERS))];
+  await clearRows(config.spreadsheetId, EVENTS_RANGE_ALL);
+  await writeRows(config.spreadsheetId, `'Events'!A1:${EVENTS_LAST_COLUMN}${eventRows.length}`, eventRows);
+
+  const holidayRows = [HOLIDAY_HEADERS, ...holidays.map((holiday) => objectToRow(serializeSheetValues(holiday), HOLIDAY_HEADERS))];
+  await clearRows(config.spreadsheetId, HOLIDAYS_RANGE_ALL);
+  await writeRows(config.spreadsheetId, `'Holidays'!A1:${HOLIDAYS_LAST_COLUMN}${holidayRows.length}`, holidayRows);
+
+  const categoryRows = [CATEGORY_HEADERS, ...categories.map((category) => objectToRow(serializeSheetValues(category), CATEGORY_HEADERS))];
+  await clearRows(config.spreadsheetId, "'Categories'!A:D");
+  await writeRows(config.spreadsheetId, `'Categories'!A1:D${categoryRows.length}`, categoryRows);
+
+  await writeLog(config, "restore", "", "", {
+    events: events.length,
+    holidays: holidays.length,
+    categories: categories.length,
+    exportedAt: backup.exportedAt ?? "",
+  });
+  clearCache(config.spreadsheetId);
+  return { events: events.length, holidays: holidays.length, categories: categories.length };
+}
+
+// Backup JSON carries isHoliday/enabled/active as real booleans (the read
+// path converts them for the UI); the sheets store them as "TRUE"/"FALSE"
+// strings, so convert back before writing.
+function serializeSheetValues(object) {
+  return Object.fromEntries(
+    Object.entries(object ?? {}).map(([key, value]) => [
+      key,
+      value === true ? "TRUE" : value === false ? "FALSE" : String(value ?? ""),
+    ]),
+  );
+}
+
 export async function undoImportBatch(config, batchId, deps = {}) {
   const readValues = deps.getValues ?? getValues;
   const clearRows = deps.clearValues ?? clearValues;

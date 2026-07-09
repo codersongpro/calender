@@ -121,6 +121,31 @@ export default function SchoolAdminApp({ slug }) {
     URL.revokeObjectURL(url);
   }
 
+  async function restoreData(event) {
+    const input = event.target;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      setError("백업 파일을 읽을 수 없습니다. 자료 백업 버튼으로 내려받은 JSON 파일을 선택해 주세요.");
+      return;
+    }
+    const summary = `일정 ${backup?.events?.length ?? 0}건, 휴일 ${backup?.holidays?.length ?? 0}건, 구분 ${backup?.categories?.length ?? 0}건`;
+    const exported = backup?.exportedAt ? ` (${String(backup.exportedAt).slice(0, 10)} 백업)` : "";
+    if (!window.confirm(`현재 자료를 모두 지우고 백업 내용으로 되돌립니다.\n${summary}${exported}\n계속할까요?`)) return;
+
+    const data = await request(`${basePath}/restore`, {
+      method: "POST",
+      body: backup,
+      label: "백업 자료로 복원했습니다.",
+    });
+    if (data) notifyPlannerChanged(slug);
+  }
+
   async function importLegacy() {
     const data = await request(`${basePath}/import`, {
       method: "POST",
@@ -347,6 +372,10 @@ export default function SchoolAdminApp({ slug }) {
               <button type="button" className="secondary-button" onClick={backupData} disabled={busy}>
                 자료 백업
               </button>
+              <label className={`secondary-button file-button${busy ? " disabled" : ""}`}>
+                자료 복원
+                <input type="file" accept=".json,application/json" onChange={restoreData} disabled={busy} hidden />
+              </label>
               <button type="button" className="secondary-button" onClick={refreshHolidays} disabled={busy}>
                 공휴일 갱신
               </button>

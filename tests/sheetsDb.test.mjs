@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { appendImportedEvents, clearEventsInRange, getMonthData, undoImportBatch } from "../src/lib/sheetsDb.js";
+import { appendImportedEvents, clearEventsInRange, getMonthData, restoreInstitutionData, undoImportBatch } from "../src/lib/sheetsDb.js";
 
 function mockBatchGet(rangeData) {
   return async (_spreadsheetId, ranges) =>
@@ -253,4 +253,91 @@ test("month clear removes only events in the selected month", async () => {
     ["log", "clear-month", "", "", { start: "2026-07-01", end: "2026-07-31", count: 1 }],
     ["cache", "sheet_clear"],
   ]);
+});
+
+test("restore replaces every data sheet with backup contents and re-serializes booleans", async () => {
+  const calls = [];
+  const deps = {
+    ensureInstitutionDatabase: async () => calls.push(["ensure"]),
+    clearValues: async (_id, range) => calls.push(["clear", range]),
+    updateValues: async (_id, range, rows) => calls.push(["update", range, rows]),
+    logEdit: async (_config, action, _eventId, _before, after) => calls.push(["log", action, after]),
+    clearInstitutionDataCache: (id) => calls.push(["cache", id]),
+  };
+
+  const result = await restoreInstitutionData(
+    { spreadsheetId: "sheet_restore" },
+    {
+      exportedAt: "2026-07-09T12:00:00.000Z",
+      events: [
+        {
+          id: "evt_1",
+          date: "2026-07-01",
+          endDate: "",
+          category: "행사",
+          time: "09:00",
+          title: "복원된 행사",
+          place: "강당",
+          owner: "교무부",
+          sortOrder: "1",
+          createdAt: "",
+          updatedAt: "",
+          deletedAt: "",
+          reviewNeeded: "",
+          importBatchId: "",
+          memo: "",
+          includeWeekend: "",
+        },
+      ],
+      // The backup's read path converts these to real booleans - restore
+      // must write them back as the sheet's "TRUE"/"FALSE" strings.
+      holidays: [
+        {
+          id: "hol_1",
+          date: "2026-07-17",
+          endDate: "",
+          name: "제헌절",
+          type: "공휴일",
+          source: "auto",
+          isHoliday: true,
+          enabled: false,
+          memo: "",
+          updatedAt: "",
+          includeWeekend: "",
+        },
+      ],
+      categories: [{ name: "행사", color: "#2563eb", sortOrder: "20", active: true }],
+    },
+    deps,
+  );
+
+  assert.deepEqual(result, { events: 1, holidays: 1, categories: 1 });
+
+  const updates = calls.filter(([kind]) => kind === "update");
+  assert.deepEqual(
+    updates.map(([, range]) => range),
+    ["'Events'!A1:P2", "'Holidays'!A1:K2", "'Categories'!A1:D2"],
+  );
+
+  const holidayRow = updates[1][2][1];
+  assert.equal(holidayRow[6], "TRUE");
+  assert.equal(holidayRow[7], "FALSE");
+  const categoryRow = updates[2][2][1];
+  assert.equal(categoryRow[3], "TRUE");
+
+  const clears = calls.filter(([kind]) => kind === "clear").map(([, range]) => range);
+  assert.deepEqual(clears, ["'Events'!A:P", "'Holidays'!A:K", "'Categories'!A:D"]);
+  assert.ok(calls.some(([kind, action]) => kind === "log" && action === "restore"));
+  assert.ok(calls.some(([kind]) => kind === "cache"));
+});
+
+test("restore rejects files that are not a backup produced by the app", async () => {
+  await assert.rejects(
+    restoreInstitutionData({ spreadsheetId: "sheet_restore" }, { events: "oops" }, {}),
+    /백업 파일 형식이 올바르지 않습니다/,
+  );
+  await assert.rejects(
+    restoreInstitutionData({ spreadsheetId: "sheet_restore" }, { events: [{ title: "id 없음" }], holidays: [], categories: [] }, {}),
+    /일정 항목이 손상되었습니다/,
+  );
 });
