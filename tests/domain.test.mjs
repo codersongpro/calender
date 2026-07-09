@@ -6,8 +6,12 @@ import {
   buildMonthView,
   calculateHolidayClusters,
   EVENT_CATEGORY_OPTIONS,
+  getDayPrintWeight,
+  getHolidayLineNames,
   getPrintContentHeightMm,
+  getPrintRowClass,
   getPrintRowCount,
+  getPrintWeightForDays,
   getMonthOptions,
   getRowCountForDays,
   getSchoolYearRange,
@@ -441,5 +445,59 @@ test("getPrintContentHeightMm subtracts print margins from each paper's height",
 test("getPrintContentHeightMm falls back to A4 for an unknown paper key", () => {
   assert.equal(getPrintContentHeightMm("NOT_A_PAPER"), getPrintContentHeightMm("A4"));
   assert.equal(getPrintContentHeightMm(undefined), getPrintContentHeightMm("A4"));
+});
+
+test("getHolidayLineNames lists holiday and cluster names", () => {
+  const day = {
+    holidays: [{ name: "삼일절" }, { name: "" }],
+    holidayCluster: { days: 3 },
+  };
+  assert.deepEqual(getHolidayLineNames(day), ["삼일절", "3일 연휴"]);
+});
+
+test("getHolidayLineNames drops a holiday name already shown as the day's event title", () => {
+  const day = { holidays: [{ name: "삼일절" }] };
+  assert.deepEqual(getHolidayLineNames(day, "삼일절"), []);
+  assert.deepEqual(getHolidayLineNames(day, "다른 제목"), ["삼일절"]);
+});
+
+test("getHolidayLineNames returns an empty list for a day with no holidays", () => {
+  assert.deepEqual(getHolidayLineNames({}), []);
+});
+
+test("getPrintRowClass picks blank/normal/holiday based on content and duplicate titles", () => {
+  const plainDay = { holidays: [] };
+  assert.equal(getPrintRowClass(plainDay, null, 0), "print-row-blank");
+  assert.equal(getPrintRowClass(plainDay, { title: "행사" }, 0), "print-row-normal");
+  // A second event on the same day is never the "first row", so it can't
+  // trigger the holiday-stacking class even if the day has a holiday.
+  assert.equal(getPrintRowClass(plainDay, { title: "행사" }, 1), "print-row-normal");
+
+  const holidayDay = { holidays: [{ name: "삼일절" }] };
+  assert.equal(getPrintRowClass(holidayDay, null, 0), "print-row-normal");
+  assert.equal(getPrintRowClass(holidayDay, { title: "삼일절" }, 0), "print-row-normal");
+  assert.equal(getPrintRowClass(holidayDay, { title: "다른 행사" }, 0), "print-row-holiday");
+});
+
+test("getDayPrintWeight sums per-row weight for a day, favoring blank days and penalizing holiday stacking", () => {
+  assert.equal(getDayPrintWeight({ events: [], holidays: [] }), 0.5);
+  assert.equal(getDayPrintWeight({ events: [], holidays: [{ name: "삼일절" }] }), 1);
+  assert.equal(getDayPrintWeight({ events: [{ title: "행사" }], holidays: [] }), 1);
+  assert.equal(
+    getDayPrintWeight({ events: [{ title: "행사" }], holidays: [{ name: "삼일절" }] }),
+    2,
+  );
+  assert.equal(
+    getDayPrintWeight({ events: [{ title: "행사1" }, { title: "행사2" }], holidays: [] }),
+    2,
+  );
+});
+
+test("getPrintWeightForDays sums getDayPrintWeight across a month", () => {
+  const days = [
+    { events: [], holidays: [] },
+    { events: [{ title: "행사" }], holidays: [] },
+  ];
+  assert.equal(getPrintWeightForDays(days), 0.5 + 1);
 });
 

@@ -5,10 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   buildMonthCsv,
   EVENT_CATEGORY_OPTIONS,
+  getHolidayLineNames,
   getMonthOptions,
   getPrintContentHeightMm,
   getPrintPaper,
-  getRowCountForDays,
+  getPrintRowClass,
+  getPrintWeightForDays,
   normalizeBoolean,
   PRINT_MARGIN_MM,
   PRINT_PAPER_SIZES,
@@ -500,10 +502,10 @@ function InstallHelpDialog({ onClose }) {
 }
 
 function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, onShowMemo, canEdit }) {
-  const printRowCount = getRowCountForDays(days);
+  const printRowWeight = getPrintWeightForDays(days);
 
   return (
-    <table className="planner-table" style={{ "--print-row-count": String(printRowCount) }}>
+    <table className="planner-table" style={{ "--print-row-weight": String(printRowWeight) }}>
       <thead>
         <tr>
           <th>일</th>
@@ -519,7 +521,10 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, onS
         {days.map((day) => {
           const events = day.events.length ? day.events : [null];
           return events.map((event, index) => (
-            <tr key={`${day.date}-${event?.id || "blank"}-${index}`} className={dayClass(day)}>
+            <tr
+              key={`${day.date}-${event?.id || "blank"}-${index}`}
+              className={`${dayClass(day)} ${getPrintRowClass(day, event, index)}`.trim()}
+            >
               {index === 0 ? (
                 <>
                   <td rowSpan={events.length} className="date-cell">
@@ -538,7 +543,7 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, onS
               <td>{event ? <CategoryPill value={event.category} categories={categories} /> : ""}</td>
               <td className="time-cell">{event?.time || ""}</td>
               <td className="title-cell">
-                {index === 0 ? <HolidayLine day={day} /> : null}
+                {index === 0 ? <HolidayLine day={day} firstEventTitle={events[0]?.title} /> : null}
                 {event ? (
                   <button
                     type="button"
@@ -579,7 +584,7 @@ function MobileCards({ monthData, onEdit, onCreate, onDismissReview, onShowMemo,
               </button>
             ) : null}
           </header>
-          <HolidayLine day={day} />
+          <HolidayLine day={day} firstEventTitle={day.events[0]?.title} />
           {day.events.length ? (
             day.events.map((event) => (
               <button
@@ -844,11 +849,8 @@ function CategoryPill({ value, categories }) {
   );
 }
 
-function HolidayLine({ day }) {
-  const names = day.holidays?.map((holiday) => holiday.name).filter(Boolean) || [];
-  if (day.holidayCluster && !names.includes(`${day.holidayCluster.days}일 연휴`)) {
-    names.push(`${day.holidayCluster.days}일 연휴`);
-  }
+function HolidayLine({ day, firstEventTitle }) {
+  const names = getHolidayLineNames(day, firstEventTitle);
   if (!names.length) return null;
   return (
     <div className="holiday-line">

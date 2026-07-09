@@ -1072,16 +1072,30 @@ input[type="file"] {
   }
 
   /*
-   * --print-row-count is set as an inline style on each individual
-   * .planner-table (one per print page). Custom properties resolve using the
-   * value seen at the element where the consuming declaration lives, so
-   * --print-row-height/--print-font-size must be declared on .planner-table
-   * itself (not :root) or every page would silently fall back to the same
-   * default row count regardless of how many rows that page actually has.
+   * --print-row-weight is set as an inline style on each individual
+   * .planner-table (one per print page): a blank day counts for a sliver of
+   * a row (PRINT_BLANK_ROW_WEIGHT in domain.js), a row stacking a holiday
+   * name above the event title counts for extra (PRINT_HOLIDAY_ROW_EXTRA_
+   * WEIGHT), and everything else counts as one normal row. --print-row-unit
+   * is the height of that one "normal row" unit; .print-row-blank/-holiday
+   * below scale it up or down per row instead of forcing every row (mostly
+   * blank weekend/no-event days) to the same height. Custom properties
+   * resolve using the value seen at the element where the consuming
+   * declaration lives, so this must be declared on .planner-table itself
+   * (not :root) or every page would silently fall back to the same default
+   * weight regardless of how much content that page actually has.
    */
   .planner-table {
-    --print-row-height: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-count, 31));
-    --print-font-size: clamp(6px, calc(var(--print-row-height) * 0.42), 12px);
+    --print-row-unit: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-weight, 31));
+    /* Font that fills a normal row: row height minus the cell's vertical
+       padding (0.25mm top + bottom) and border (1px top + bottom), divided
+       by the 1.05 line-height so the text block doesn't overflow the row. */
+    --print-font-size: clamp(6px, calc((var(--print-row-unit) - 0.5mm - 2px) / 1.05), 20px);
+    /* Blank rows are only PRINT_BLANK_ROW_WEIGHT (0.5) of a normal row tall
+       (kept in sync with domain.js), so they need their own smaller font -
+       a table cell's height is a minimum, not a cap, so reusing the normal
+       font here would just force blank rows back to full height. */
+    --print-font-size-blank: clamp(6px, calc((var(--print-row-unit) * 0.5 - 0.5mm - 2px) / 1.05), 14px);
   }
 
   html,
@@ -1168,14 +1182,9 @@ input[type="file"] {
     text-overflow: ellipsis;
   }
 
-  .planner-table td {
-    height: var(--print-row-height);
-    max-height: var(--print-row-height);
-  }
-
   .planner-table th {
     height: var(--print-header-height);
-    font-size: clamp(7px, calc(var(--print-font-size) * 1.08), 11px);
+    font-size: clamp(7px, calc(var(--print-font-size) * 1.08), 18px);
   }
 
   .planner-table th,
@@ -1187,10 +1196,27 @@ input[type="file"] {
   }
 
   .planner-table tbody tr {
-    height: var(--print-row-height);
-    max-height: var(--print-row-height);
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  .planner-table tbody tr.print-row-blank,
+  .planner-table tbody tr.print-row-blank td {
+    height: calc(var(--print-row-unit) * 0.5);
+    max-height: calc(var(--print-row-unit) * 0.5);
+    font-size: var(--print-font-size-blank);
+  }
+
+  .planner-table tbody tr.print-row-normal,
+  .planner-table tbody tr.print-row-normal td {
+    height: var(--print-row-unit);
+    max-height: var(--print-row-unit);
+  }
+
+  .planner-table tbody tr.print-row-holiday,
+  .planner-table tbody tr.print-row-holiday td {
+    height: calc(var(--print-row-unit) * 2);
+    max-height: calc(var(--print-row-unit) * 2);
   }
 
   .date-cell::before {

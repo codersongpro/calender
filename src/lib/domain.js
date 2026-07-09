@@ -273,15 +273,69 @@ export function getPrintRowCount(monthData) {
   return getRowCountForDays(monthData.days);
 }
 
-// Split a month's days across print pages so each page's total row count is
-// as close to equal as possible, without splitting a single day's rows across
-// two pages (a day with several events always stays together).
+// A blank day (no events) only needs to show a date number, so it's given a
+// fraction of a normal row's height instead of a full unit. A table cell's
+// height is only a *minimum* in real browser layout - content that doesn't
+// fit still forces the row taller - so this can't shrink arbitrarily close
+// to zero: the blank row gets its own smaller font (see --print-font-size-
+// blank in globals.css) sized to actually fit within this fraction.
+export const PRINT_BLANK_ROW_WEIGHT = 0.5;
+// A day's first row stacks the holiday-name line above the event title, so
+// it needs a full extra line of room (same reasoning: a table cell can't be
+// forced shorter than the text it has to hold at the shared font size).
+export const PRINT_HOLIDAY_ROW_EXTRA_WEIGHT = 1;
+
+// Holiday names to show for a day, skipping any that exactly match the title
+// of the event already printed on that same row. Imported school workbooks
+// commonly list a holiday like "삼일절" as its own event, which would
+// otherwise print the identical name twice, stacked in one cell, for no
+// reason - and force every row on the page to shrink to leave room for that
+// avoidable second line.
+export function getHolidayLineNames(day, firstEventTitle) {
+  const names = (day.holidays ?? []).map((holiday) => holiday.name).filter(Boolean);
+  if (day.holidayCluster && !names.includes(`${day.holidayCluster.days}일 연휴`)) {
+    names.push(`${day.holidayCluster.days}일 연휴`);
+  }
+  return names.filter((name) => name !== firstEventTitle);
+}
+
+// CSS class controlling how tall a single print row renders: a blank day
+// collapses to a sliver, a row that stacks a holiday name gets extra room,
+// and everything else is a normal single line.
+export function getPrintRowClass(day, event, index) {
+  const holidayNames = index === 0 ? getHolidayLineNames(day, event?.title) : [];
+  if (!event) return holidayNames.length > 0 ? "print-row-normal" : "print-row-blank";
+  return holidayNames.length > 0 ? "print-row-holiday" : "print-row-normal";
+}
+
+function getPrintRowWeightValue(day, event, index) {
+  const holidayNames = index === 0 ? getHolidayLineNames(day, event?.title) : [];
+  if (!event) return holidayNames.length > 0 ? 1 : PRINT_BLANK_ROW_WEIGHT;
+  return holidayNames.length > 0 ? 1 + PRINT_HOLIDAY_ROW_EXTRA_WEIGHT : 1;
+}
+
+// Total vertical "weight" (in row-units) a day's printed rows need. Unlike a
+// flat row count, this reflects that blank days barely need any space and
+// holiday-stacked rows need extra, so the leftover space can go to genuinely
+// full rows instead of being spread flat across every row alike.
+export function getDayPrintWeight(day) {
+  const events = day.events?.length ? day.events : [null];
+  return events.reduce((sum, event, index) => sum + getPrintRowWeightValue(day, event, index), 0);
+}
+
+export function getPrintWeightForDays(days) {
+  return (days ?? []).reduce((sum, day) => sum + getDayPrintWeight(day), 0);
+}
+
+// Split a month's days across print pages so each page's total print weight
+// is as close to equal as possible, without splitting a single day's rows
+// across two pages (a day with several events always stays together).
 export function splitDaysForPrint(days, pageCount) {
   const list = days ?? [];
   const count = Math.max(1, Math.floor(Number(pageCount) || 1));
   if (count <= 1 || list.length <= 1) return [list];
 
-  const rowCounts = list.map((day) => Math.max(day.events?.length ?? 0, 1));
+  const rowCounts = list.map((day) => getDayPrintWeight(day));
   const total = rowCounts.reduce((sum, n) => sum + n, 0);
 
   const pages = [];
