@@ -61,3 +61,18 @@ test("blank rows get their own smaller font instead of reusing the full row's fo
   );
   assert.match(printCss, /\.print-row-blank[\s\S]*?font-size:\s*var\(--print-font-size-blank\);/);
 });
+
+test("print title is enlarged and no cell text is ever ellipsis-truncated", async () => {
+  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const printCss = css.slice(css.indexOf("@media print"));
+
+  assert.match(printCss, /\.print-title h2\s*{[^}]*font-size:\s*22px;/s);
+  assert.match(printCss, /\.print-title p\s*{[^}]*font-size:\s*13px;/s);
+
+  // Wrapping is disallowed and cells must never fall back to "...";
+  // shrinkPrintRowsToFit() in PlannerApp.jsx handles overflow by shrinking
+  // a row's own font-size instead, so the CSS itself must never truncate.
+  assert.doesNotMatch(printCss, /text-overflow:\s*ellipsis/);
+  assert.match(printCss, /\.planner-table th,\s*\n\s*\.planner-table td\s*{[^}]*white-space:\s*nowrap;/s);
+  assert.match(printCss, /\.date-cell \.date-button,\s*\n\s*\.title-cell \.event-title\s*{[^}]*white-space:\s*nowrap;/s);
+});

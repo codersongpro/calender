@@ -1156,11 +1156,11 @@ input[type="file"] {
   }
 
   .print-title h2 {
-    font-size: 14px;
+    font-size: 22px;
   }
 
   .print-title p {
-    font-size: 9px;
+    font-size: 13px;
   }
 
   .planner-table {
@@ -1174,12 +1174,47 @@ input[type="file"] {
     break-inside: avoid;
   }
 
+  /* Screen widths (globals.css:339-358) are tuned for the small on-screen
+     font; at the much larger print font-size the 시간/장소/담당자 columns
+     they leave behind are too narrow for their usual content. Re-split the
+     table width in percentages so those columns get a fair share up front,
+     which reduces (but per-row content length can still vary, so it can't
+     eliminate) how often printPageFit() needs to shrink a row. */
+  .planner-table th:nth-child(1),
+  .planner-table th:nth-child(2) {
+    width: 5%;
+  }
+
+  .planner-table th:nth-child(3) {
+    width: 9%;
+  }
+
+  .planner-table th:nth-child(4) {
+    width: 13%;
+  }
+
+  .planner-table th:nth-child(6) {
+    width: 18%;
+  }
+
+  .planner-table th:nth-child(7) {
+    width: 16%;
+  }
+
+  /*
+   * No wrapping and no ellipsis: a cell's text must stay on one line and
+   * must all be visible, never truncated. Columns are sized generously (see
+   * nth-child widths above), but content-driven text length can still vary
+   * more than any fixed width can guarantee to fit - shrinkPrintRowsToFit()
+   * in PlannerApp.jsx (registered on window's beforeprint event) measures
+   * each row and shrinks that row's own font-size just enough for every
+   * cell to fit without wrapping, so "..." never has to stand in for real
+   * text.
+   */
   .planner-table th,
   .planner-table td {
-    overflow: hidden;
     padding: 0.25mm 0.7mm;
     white-space: nowrap;
-    text-overflow: ellipsis;
   }
 
   .planner-table th {
@@ -1227,8 +1262,6 @@ input[type="file"] {
   .date-cell .date-button,
   .title-cell .event-title {
     display: block !important;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.05;
   }
@@ -1236,8 +1269,6 @@ input[type="file"] {
   .holiday-line {
     display: block;
     margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 

@@ -69,6 +69,55 @@ export default function PlannerApp({ slug }) {
   }, [paperSize]);
 
   useEffect(() => {
+    function fitRowToWidth(cells) {
+      if (!cells.length) return;
+      const startSize = parseFloat(window.getComputedStyle(cells[0]).fontSize) || 20;
+      const floor = 5;
+      const fitsAt = (size) => {
+        cells.forEach((cell) => {
+          cell.style.fontSize = `${size}px`;
+        });
+        return !cells.some((cell) => cell.scrollWidth > cell.clientWidth + 0.5);
+      };
+      if (fitsAt(startSize)) return;
+      let lo = floor;
+      let hi = startSize;
+      fitsAt(lo);
+      // Binary search for the largest font-size (down to `floor`) that keeps
+      // every cell in the row on one line - a few measurement passes beat
+      // stepping down 0.5px at a time across every row on the page.
+      for (let i = 0; i < 10; i++) {
+        const mid = (lo + hi) / 2;
+        if (fitsAt(mid)) lo = mid;
+        else hi = mid;
+      }
+      fitsAt(lo);
+    }
+    function shrinkPrintRowsToFit() {
+      const rows = document.querySelectorAll(".planner-table tbody tr");
+      rows.forEach((row) => {
+        Array.from(row.children).forEach((cell) => {
+          cell.style.fontSize = "";
+        });
+      });
+      rows.forEach((row) => fitRowToWidth(Array.from(row.children)));
+    }
+    function resetPrintRowFontSizes() {
+      document.querySelectorAll(".planner-table tbody tr").forEach((row) => {
+        Array.from(row.children).forEach((cell) => {
+          cell.style.fontSize = "";
+        });
+      });
+    }
+    window.addEventListener("beforeprint", shrinkPrintRowsToFit);
+    window.addEventListener("afterprint", resetPrintRowFontSizes);
+    return () => {
+      window.removeEventListener("beforeprint", shrinkPrintRowsToFit);
+      window.removeEventListener("afterprint", resetPrintRowFontSizes);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch(() => {
       // Add-to-home-screen still works without the service worker on most
