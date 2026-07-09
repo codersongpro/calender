@@ -97,20 +97,24 @@ export default function PlannerApp({ slug }) {
       fitsAt(lo);
     }
     // Row heights are sized via CSS calc() to sum to exactly one page, but
-    // that math can still come up short in practice (rounding, a browser
-    // treating a table's own height as a minimum the same way it does for
-    // td/tr, printer/PDF quirks) - this is the last-resort guarantee that a
-    // day's row is squeezed to visible-but-compressed instead of silently
-    // clipped by print-surface's overflow: hidden.
+    // reality can still exceed the budget (rounding drift, an over-tall
+    // title pushing the table down, rows refusing to squeeze below their
+    // content height) - so measure where the table's bottom edge ACTUALLY
+    // lands relative to the page surface's bottom edge, not just the
+    // table's own height: a table of the right height that merely starts
+    // too low still gets its last row clipped by print-surface's
+    // overflow: hidden. Squeezing it with scaleY keeps the last day
+    // visible-but-compressed instead of silently cut off.
     function fitPrintSurfacesToPage() {
       document.querySelectorAll(".print-surface").forEach((surface) => {
         const table = surface.querySelector(".planner-table");
         if (!table) return;
         table.style.transform = "";
-        const surfaceHeight = surface.clientHeight;
-        const tableHeight = table.getBoundingClientRect().height;
-        if (surfaceHeight > 0 && tableHeight > surfaceHeight) {
-          table.style.transform = `scaleY(${surfaceHeight / tableHeight})`;
+        const surfaceRect = surface.getBoundingClientRect();
+        const tableRect = table.getBoundingClientRect();
+        const available = surfaceRect.bottom - tableRect.top;
+        if (tableRect.height > 0 && available > 0 && tableRect.height > available) {
+          table.style.transform = `scaleY(${available / tableRect.height})`;
           table.style.transformOrigin = "top left";
         }
       });
@@ -195,6 +199,23 @@ export default function PlannerApp({ slug }) {
 
   async function addShortcut() {
     if (!installPrompt) {
+      // beforeinstallprompt never fires when the app is already installed -
+      // getInstalledRelatedApps (backed by related_applications in the
+      // manifest) is the only way to tell that apart from "the browser just
+      // didn't offer an install prompt", so the dialog can say the right
+      // thing instead of walking an already-installed user through menus.
+      let alreadyInstalled = false;
+      try {
+        const related = await navigator.getInstalledRelatedApps?.();
+        alreadyInstalled = Boolean(related?.length);
+      } catch {
+        // Not supported (Firefox/Safari) - fall through to the manual guide.
+      }
+      if (alreadyInstalled) {
+        setInstalled(true);
+        setStatus("이미 바로가기(앱)가 설치되어 있습니다. 바탕화면이나 홈 화면에서 열 수 있습니다.");
+        return;
+      }
       setShowInstallHelp(true);
       return;
     }
@@ -718,7 +739,12 @@ function MobileCards({ days, categories, onEdit, onCreate, onDismissReview, onSh
 
 function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit, onDelete, onClose }) {
   const categoryNames = categories.map((category) => category.name);
-  const directCategory = !categoryNames.includes(draft.category);
+  // Explicit state, decided once when the dialog opens (the dialog is
+  // mounted fresh per open) - deriving it from the current value would flip
+  // the text input back into a select mid-typing the moment the typed text
+  // happens to equal an existing category name (e.g. typing "교육활동"
+  // loses the field at "교육"), which also drops keyboard focus.
+  const [directCategory, setDirectCategory] = useState(() => !categoryNames.includes(draft.category));
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
@@ -774,7 +800,12 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
                 value={draft.category}
                 onChange={(event) => {
                   const next = event.target.value;
-                  setDraft({ ...draft, category: next === "(직접입력)" ? "" : next });
+                  if (next === "(직접입력)") {
+                    setDirectCategory(true);
+                    setDraft({ ...draft, category: "" });
+                    return;
+                  }
+                  setDraft({ ...draft, category: next });
                 }}
               >
                 {categoryNames.map((name) => (

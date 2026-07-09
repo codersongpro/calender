@@ -1,5 +1,3 @@
-import Script from "next/script";
-
 import "./globals.css";
 
 export const metadata = {
@@ -7,31 +5,29 @@ export const metadata = {
   description: "학교와 기관을 위한 월별 행사계획 웹앱",
 };
 
+// Chrome fires beforeinstallprompt once, as soon as it finishes checking the
+// manifest/service worker - often before React hydrates, and a missed event
+// can't be replayed, which leaves "바로가기 추가" permanently stuck on the
+// manual-instructions fallback. This must run synchronously during HTML
+// parsing, so it's a raw inline <script> in <head>: next/script's
+// beforeInteractive does NOT do that for inline scripts - it serializes them
+// into the self.__next_s queue, which only executes when Next's own JS chunk
+// runs (and is unreliable for inline scripts in the app router).
+const captureInstallPrompt = `
+window.addEventListener("beforeinstallprompt", function (event) {
+  event.preventDefault();
+  window.__deferredInstallPrompt = event;
+  window.dispatchEvent(new CustomEvent("deferredinstallpromptready"));
+});
+`;
+
 export default function RootLayout({ children }) {
   return (
     <html lang="ko">
-      <body>
-        {/*
-          Chrome can fire beforeinstallprompt as soon as the manifest/service
-          worker are evaluated - which can happen before React finishes
-          hydrating, especially on a fast load. There's no way to "replay" a
-          missed event, so without this the "바로가기 추가" button would
-          silently and permanently fall back to the manual instructions on
-          every visit. beforeInteractive runs this before hydration so the
-          event is always captured, then PlannerApp picks it up from
-          window.__deferredInstallPrompt once it mounts.
-        */}
-        <Script id="capture-install-prompt" strategy="beforeInteractive">
-          {`
-            window.addEventListener("beforeinstallprompt", function (event) {
-              event.preventDefault();
-              window.__deferredInstallPrompt = event;
-              window.dispatchEvent(new CustomEvent("deferredinstallpromptready"));
-            });
-          `}
-        </Script>
-        {children}
-      </body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: captureInstallPrompt }} />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

@@ -1178,9 +1178,19 @@ input[type="file"] {
     page-break-after: always;
   }
 
+  /* The title must occupy EXACTLY --print-title-height: the row-height math
+     subtracts that budget from the page, so any real extra (like the h2's
+     browser-default ~20px top/bottom margins, which nothing else resets in
+     print) silently pushes the whole table down past the page bottom and
+     clips the last day's row. Exact height + hidden overflow + zeroed child
+     margins keep budget and reality identical. */
   .print-title {
     display: flex;
+    align-items: center;
+    height: var(--print-title-height);
     min-height: var(--print-title-height);
+    max-height: var(--print-title-height);
+    overflow: hidden;
     margin: 0;
     flex: 0 0 auto;
     break-after: avoid;
@@ -1189,10 +1199,13 @@ input[type="file"] {
 
   .print-title h2 {
     font-size: 22px;
+    margin: 0;
+    line-height: 1.1;
   }
 
   .print-title p {
     font-size: 13px;
+    margin: 0;
   }
 
   .planner-table {
