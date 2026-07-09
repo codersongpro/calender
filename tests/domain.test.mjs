@@ -7,6 +7,7 @@ import {
   calculateHolidayClusters,
   EVENT_CATEGORY_OPTIONS,
   getDayPrintWeight,
+  getHolidayClustersForDays,
   getHolidayLineNames,
   getPrintContentHeightMm,
   getPrintRowClass,
@@ -90,8 +91,77 @@ test("holiday clusters include weekends connected to holidays", () => {
       end: "2026-10-11",
       days: 3,
       names: ["한글날"],
+      includesWeekend: true,
     },
   ]);
+});
+
+test("holiday clusters with includeWeekend: false don't absorb an adjacent weekend", () => {
+  const holidays = [
+    {
+      id: "h1",
+      date: "2026-10-09",
+      name: "한글날",
+      isHoliday: true,
+      enabled: true,
+    },
+  ];
+
+  // A lone Friday holiday can't reach the 3-day cluster minimum on its own
+  // once the weekend next to it stops counting as a candidate day.
+  assert.deepEqual(calculateHolidayClusters(holidays, "2026-10-01", "2026-10-31", { includeWeekend: false }), []);
+});
+
+test("a holiday cluster with no adjacent weekend is marked as weekday-only", () => {
+  const clusters = calculateHolidayClusters(
+    [
+      {
+        id: "h1",
+        date: "2026-09-15",
+        endDate: "2026-09-17",
+        name: "임시휴업일",
+        isHoliday: true,
+        enabled: true,
+      },
+    ],
+    "2026-09-01",
+    "2026-09-30",
+  );
+
+  assert.deepEqual(clusters, [
+    {
+      start: "2026-09-15",
+      end: "2026-09-17",
+      days: 3,
+      names: ["임시휴업일"],
+      includesWeekend: false,
+    },
+  ]);
+});
+
+test("getHolidayClustersForDays recomputes clusters from buildMonthView's per-day holidays", () => {
+  const view = buildMonthView({
+    year: 2026,
+    month: 10,
+    events: [],
+    holidays: [
+      {
+        id: "h1",
+        date: "2026-10-09",
+        name: "한글날",
+        isHoliday: true,
+        enabled: true,
+      },
+    ],
+  });
+
+  const clusters = getHolidayClustersForDays(view.days);
+  assert.deepEqual(clusters, [
+    { start: "2026-10-09", end: "2026-10-11", days: 3, names: ["한글날"], includesWeekend: true },
+  ]);
+
+  const weekdayOnlyClusters = getHolidayClustersForDays(view.days, { includeWeekend: false });
+  assert.deepEqual(weekdayOnlyClusters, []);
 });
 
 test("month view expands event and holiday date ranges", () => {
@@ -447,12 +517,22 @@ test("getPrintContentHeightMm falls back to A4 for an unknown paper key", () => 
   assert.equal(getPrintContentHeightMm(undefined), getPrintContentHeightMm("A4"));
 });
 
-test("getHolidayLineNames lists holiday and cluster names", () => {
+test("getHolidayLineNames lists holiday and cluster names for a weekday-only cluster", () => {
   const day = {
     holidays: [{ name: "삼일절" }, { name: "" }],
-    holidayCluster: { days: 3 },
+    holidayCluster: { days: 3, includesWeekend: false },
   };
   assert.deepEqual(getHolidayLineNames(day), ["삼일절", "3일 연휴"]);
+});
+
+test("getHolidayLineNames suppresses the 'N일 연휴' label when the cluster includes a weekend", () => {
+  const day = {
+    holidays: [{ name: "제헌절" }],
+    holidayCluster: { days: 3, includesWeekend: true },
+  };
+  // The holiday's own name still shows - only the auto-generated run label
+  // is dropped, since the weekend shading already implies a long weekend.
+  assert.deepEqual(getHolidayLineNames(day), ["제헌절"]);
 });
 
 test("getHolidayLineNames drops a holiday name already shown as the day's event title", () => {

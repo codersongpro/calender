@@ -168,7 +168,11 @@ export function normalizeBoolean(value, defaultValue = false) {
   return defaultValue;
 }
 
-export function calculateHolidayClusters(holidays, start, end) {
+// `includeWeekend: false` stops a holiday run from absorbing an adjacent
+// Saturday/Sunday into the same cluster - a weekday-only holiday right
+// before a weekend then forms its own (shorter) cluster instead of being
+// merged into one long run with the weekend.
+export function calculateHolidayClusters(holidays, start, end, { includeWeekend = true } = {}) {
   const enabledHolidayDates = new Set(
     holidays.flatMap((holiday) => {
       if (!normalizeBoolean(holiday.enabled, true) || !normalizeBoolean(holiday.isHoliday, true)) return [];
@@ -191,7 +195,7 @@ export function calculateHolidayClusters(holidays, start, end) {
   for (let day = start; day <= end; day = addDays(day, 1)) {
     const date = parseDateKey(day);
     const weekend = date.getDay() === 0 || date.getDay() === 6;
-    if (weekend || enabledHolidayDates.has(day)) {
+    if ((includeWeekend && weekend) || enabledHolidayDates.has(day)) {
       candidates.push(day);
     }
   }
@@ -218,12 +222,34 @@ export function calculateHolidayClusters(holidays, start, end) {
 
 function pushHolidayCluster(clusters, days, dateNames) {
   const names = [...new Set(days.flatMap((day) => dateNames.get(day) ?? []))];
+  const includesWeekend = days.some((day) => {
+    const weekday = parseDateKey(day).getDay();
+    return weekday === 0 || weekday === 6;
+  });
   clusters.push({
     start: days[0],
     end: days[days.length - 1],
     days: days.length,
     names,
+    includesWeekend,
   });
+}
+
+// Lets the UI recompute clusters (e.g. for a "주말 포함/제외" toggle) from
+// the already-resolved per-day view buildMonthView produces, instead of
+// needing the original flat holiday list + a server round-trip.
+export function getHolidayClustersForDays(days, options = {}) {
+  if (!days.length) return [];
+  const holidays = days.flatMap((day) =>
+    (day.holidays ?? []).map((holiday) => ({
+      date: day.date,
+      endDate: "",
+      enabled: true,
+      isHoliday: holiday.isHoliday,
+      name: holiday.name,
+    })),
+  );
+  return calculateHolidayClusters(holidays, days[0].date, days[days.length - 1].date, options);
 }
 
 export function rowsToObjects(rows, headers) {
@@ -291,9 +317,20 @@ export const PRINT_HOLIDAY_ROW_EXTRA_WEIGHT = 1;
 // otherwise print the identical name twice, stacked in one cell, for no
 // reason - and force every row on the page to shrink to leave room for that
 // avoidable second line.
+//
+// The "N일 연휴" run label is only added for a cluster that's entirely
+// weekdays: a cluster that also swallows a Saturday/Sunday is already
+// visually obvious as a long weekend from the red/warm shading on those
+// days, so spelling it out again as "연휴" would be redundant - it only
+// earns the explicit label when it's telling you something the shading
+// alone doesn't (that these particular weekdays are also a break).
 export function getHolidayLineNames(day, firstEventTitle) {
   const names = (day.holidays ?? []).map((holiday) => holiday.name).filter(Boolean);
-  if (day.holidayCluster && !names.includes(`${day.holidayCluster.days}일 연휴`)) {
+  if (
+    day.holidayCluster &&
+    !day.holidayCluster.includesWeekend &&
+    !names.includes(`${day.holidayCluster.days}일 연휴`)
+  ) {
     names.push(`${day.holidayCluster.days}일 연휴`);
   }
   return names.filter((name) => name !== firstEventTitle);

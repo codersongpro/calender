@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   buildMonthCsv,
   EVENT_CATEGORY_OPTIONS,
+  getHolidayClustersForDays,
   getHolidayLineNames,
   getMonthOptions,
   getPrintContentHeightMm,
@@ -41,12 +42,25 @@ export default function PlannerApp({ slug }) {
   const [showEventForm, setShowEventForm] = useState(false);
   const [printPages, setPrintPages] = useState(1);
   const [paperSize, setPaperSize] = useState("A4");
+  const [includeWeekendHolidays, setIncludeWeekendHolidays] = useState(true);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [viewingMemoEvent, setViewingMemoEvent] = useState(null);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
-  const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
+  // Recomputed client-side (instead of re-fetching) so the "주말 포함/제외"
+  // toggle below can react instantly - buildMonthView's per-day holidays are
+  // already resolved, so calculateHolidayClusters just needs to run again
+  // against that same data with the option flipped.
+  const days = useMemo(() => {
+    if (!monthData) return [];
+    const clusters = getHolidayClustersForDays(monthData.days, { includeWeekend: includeWeekendHolidays });
+    return monthData.days.map((day) => ({
+      ...day,
+      holidayCluster: clusters.find((cluster) => day.date >= cluster.start && day.date <= cluster.end) ?? null,
+    }));
+  }, [monthData, includeWeekendHolidays]);
+  const printPageGroups = monthData ? splitDaysForPrint(days, printPages) : [];
 
   useEffect(() => {
     loadConfig();
@@ -69,23 +83,26 @@ export default function PlannerApp({ slug }) {
   }, [paperSize]);
 
   useEffect(() => {
-    function fitRowToWidth(cells) {
-      if (!cells.length) return;
-      const startSize = parseFloat(window.getComputedStyle(cells[0]).fontSize) || 20;
+    // Each cell finds its own best-fit font-size independently, instead of
+    // the whole row sharing one size - otherwise a single long cell (e.g. a
+    // long 일정 제목) would drag every other cell in that row down to match,
+    // even though a short 시간/구분 cell next to it had plenty of room.
+    // Shrinking is always <= the row's own default size, so a cell never
+    // needs more vertical room than the row was already sized for.
+    function fitCellToWidth(cell) {
+      const startSize = parseFloat(window.getComputedStyle(cell).fontSize) || 20;
       const floor = 5;
       const fitsAt = (size) => {
-        cells.forEach((cell) => {
-          cell.style.fontSize = `${size}px`;
-        });
-        return !cells.some((cell) => cell.scrollWidth > cell.clientWidth);
+        cell.style.fontSize = `${size}px`;
+        return cell.scrollWidth <= cell.clientWidth;
       };
       if (fitsAt(startSize)) return;
       let lo = floor;
       let hi = startSize;
       fitsAt(lo);
       // Binary search for the largest font-size (down to `floor`) that keeps
-      // every cell in the row on one line - a few measurement passes beat
-      // stepping down 0.5px at a time across every row on the page.
+      // this cell's content on one line - a few measurement passes beat
+      // stepping down 0.5px at a time across every cell on the page.
       for (let i = 0; i < 10; i++) {
         const mid = (lo + hi) / 2;
         if (fitsAt(mid)) lo = mid;
@@ -93,38 +110,34 @@ export default function PlannerApp({ slug }) {
       }
       fitsAt(lo);
     }
-    function shrinkPrintRowsToFit() {
-      const rows = document.querySelectorAll(".planner-table tbody tr");
-      rows.forEach((row) => {
-        Array.from(row.children).forEach((cell) => {
-          cell.style.fontSize = "";
-        });
+    function shrinkPrintCellsToFit() {
+      const cells = document.querySelectorAll(".planner-table tbody tr > *");
+      cells.forEach((cell) => {
+        cell.style.fontSize = "";
       });
-      rows.forEach((row) => fitRowToWidth(Array.from(row.children)));
+      cells.forEach((cell) => fitCellToWidth(cell));
     }
-    function resetPrintRowFontSizes() {
-      document.querySelectorAll(".planner-table tbody tr").forEach((row) => {
-        Array.from(row.children).forEach((cell) => {
-          cell.style.fontSize = "";
-        });
+    function resetPrintCellFontSizes() {
+      document.querySelectorAll(".planner-table tbody tr > *").forEach((cell) => {
+        cell.style.fontSize = "";
       });
     }
     function handlePrintMediaChange(event) {
-      if (event.matches) shrinkPrintRowsToFit();
-      else resetPrintRowFontSizes();
+      if (event.matches) shrinkPrintCellsToFit();
+      else resetPrintCellFontSizes();
     }
-    window.addEventListener("beforeprint", shrinkPrintRowsToFit);
-    window.addEventListener("afterprint", resetPrintRowFontSizes);
+    window.addEventListener("beforeprint", shrinkPrintCellsToFit);
+    window.addEventListener("afterprint", resetPrintCellFontSizes);
     // beforeprint/afterprint timing has historically been inconsistent
     // across browsers - matchMedia's change event fires exactly when the
     // browser's rendering actually switches to/from print layout, so it's
     // kept as a second, more fundamental trigger for the same two functions
-    // (both are idempotent: shrink always resets every row first).
+    // (both are idempotent: shrink always resets every cell first).
     const printMediaQuery = window.matchMedia("print");
     printMediaQuery.addEventListener("change", handlePrintMediaChange);
     return () => {
-      window.removeEventListener("beforeprint", shrinkPrintRowsToFit);
-      window.removeEventListener("afterprint", resetPrintRowFontSizes);
+      window.removeEventListener("beforeprint", shrinkPrintCellsToFit);
+      window.removeEventListener("afterprint", resetPrintCellFontSizes);
       printMediaQuery.removeEventListener("change", handlePrintMediaChange);
     };
   }, []);
@@ -424,6 +437,16 @@ export default function PlannerApp({ slug }) {
             <option value={2}>2페이지로 나누기</option>
           </select>
         </label>
+        <label>
+          <span>연이은 연휴</span>
+          <select
+            value={includeWeekendHolidays ? "include" : "exclude"}
+            onChange={(event) => setIncludeWeekendHolidays(event.target.value === "include")}
+          >
+            <option value="include">주말 포함</option>
+            <option value="exclude">주말 제외</option>
+          </select>
+        </label>
       </section>
 
       <StatusBar status={status} error={error} />
@@ -453,7 +476,8 @@ export default function PlannerApp({ slug }) {
             </section>
           ))}
           <MobileCards
-            monthData={monthData}
+            days={days}
+            categories={monthData.categories}
             onEdit={beginEdit}
             onCreate={beginCreate}
             onDismissReview={dismissReview}
@@ -629,10 +653,10 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, onS
   );
 }
 
-function MobileCards({ monthData, onEdit, onCreate, onDismissReview, onShowMemo, canEdit }) {
+function MobileCards({ days, categories, onEdit, onCreate, onDismissReview, onShowMemo, canEdit }) {
   return (
     <div className="mobile-cards">
-      {monthData.days.map((day) => (
+      {days.map((day) => (
         <article key={day.date} className={`day-card ${dayClass(day)}`}>
           <header>
             <div>
@@ -655,7 +679,7 @@ function MobileCards({ monthData, onEdit, onCreate, onDismissReview, onShowMemo,
                 onClick={() => (canEdit ? onEdit(event) : event.memo && onShowMemo(event))}
               >
                 <span>
-                  <CategoryPill value={event.category} categories={monthData.categories} />
+                  <CategoryPill value={event.category} categories={categories} />
                   {event.time ? <em>{event.time}</em> : null}
                   {normalizeBoolean(event.reviewNeeded) ? (
                     <ReviewBadge event={event} canEdit={canEdit} onDismiss={onDismissReview} />
