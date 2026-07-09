@@ -1111,7 +1111,14 @@ input[type="file"] {
    * weight regardless of how much content that page actually has.
    */
   .planner-table {
-    --print-row-unit: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height)) / var(--print-row-weight, 31));
+    /* The 3mm here is deliberate slack, not part of the layout math: summing
+       dozens of individually-rounded row heights can drift a few px past
+       the page by the last row (and some browsers/printers enforce a hair
+       more non-printable margin than the @page rule asks for), which was
+       clipping the bottom of the last day's row. Trading a hair of font
+       size for that margin is worth it since a clipped row loses real
+       information. */
+    --print-row-unit: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height) - 3mm) / var(--print-row-weight, 31));
     /* Font that fills a normal row: row height minus the cell's vertical
        padding (0.25mm top + bottom) and border (1px top + bottom), divided
        by the 1.05 line-height so the text block doesn't overflow the row. */
