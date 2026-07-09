@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   buildMonthCsv,
   EVENT_CATEGORY_OPTIONS,
-  getHolidayClustersForDays,
   getHolidayLineNames,
   getMonthOptions,
   getPrintContentHeightMm,
@@ -42,25 +41,12 @@ export default function PlannerApp({ slug }) {
   const [showEventForm, setShowEventForm] = useState(false);
   const [printPages, setPrintPages] = useState(1);
   const [paperSize, setPaperSize] = useState("A4");
-  const [includeWeekendHolidays, setIncludeWeekendHolidays] = useState(true);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [viewingMemoEvent, setViewingMemoEvent] = useState(null);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
-  // Recomputed client-side (instead of re-fetching) so the "주말 포함/제외"
-  // toggle below can react instantly - buildMonthView's per-day holidays are
-  // already resolved, so calculateHolidayClusters just needs to run again
-  // against that same data with the option flipped.
-  const days = useMemo(() => {
-    if (!monthData) return [];
-    const clusters = getHolidayClustersForDays(monthData.days, { includeWeekend: includeWeekendHolidays });
-    return monthData.days.map((day) => ({
-      ...day,
-      holidayCluster: clusters.find((cluster) => day.date >= cluster.start && day.date <= cluster.end) ?? null,
-    }));
-  }, [monthData, includeWeekendHolidays]);
-  const printPageGroups = monthData ? splitDaysForPrint(days, printPages) : [];
+  const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
 
   useEffect(() => {
     loadConfig();
@@ -160,9 +146,22 @@ export default function PlannerApp({ slug }) {
       setInstallPrompt(null);
       setInstalled(true);
     }
+    // The root layout's beforeInteractive script captures beforeinstallprompt
+    // before this component ever mounts (Chrome can fire it before React
+    // hydrates), so pick that up first - otherwise a prompt that already
+    // fired is lost for good and 바로가기 추가 falls back to the manual
+    // instructions every time even though the browser was ready to install.
+    function handleDeferredInstallPromptReady() {
+      if (window.__deferredInstallPrompt) setInstallPrompt(window.__deferredInstallPrompt);
+    }
+    if (window.__deferredInstallPrompt) {
+      setInstallPrompt(window.__deferredInstallPrompt);
+    }
+    window.addEventListener("deferredinstallpromptready", handleDeferredInstallPromptReady);
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
     return () => {
+      window.removeEventListener("deferredinstallpromptready", handleDeferredInstallPromptReady);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
@@ -177,6 +176,7 @@ export default function PlannerApp({ slug }) {
     const choice = await installPrompt.userChoice;
     if (choice?.outcome === "accepted") setInstalled(true);
     setInstallPrompt(null);
+    window.__deferredInstallPrompt = null;
   }
 
   useEffect(() => {
@@ -437,16 +437,6 @@ export default function PlannerApp({ slug }) {
             <option value={2}>2페이지로 나누기</option>
           </select>
         </label>
-        <label>
-          <span>연이은 연휴</span>
-          <select
-            value={includeWeekendHolidays ? "include" : "exclude"}
-            onChange={(event) => setIncludeWeekendHolidays(event.target.value === "include")}
-          >
-            <option value="include">주말 포함</option>
-            <option value="exclude">주말 제외</option>
-          </select>
-        </label>
       </section>
 
       <StatusBar status={status} error={error} />
@@ -476,7 +466,7 @@ export default function PlannerApp({ slug }) {
             </section>
           ))}
           <MobileCards
-            days={days}
+            days={monthData.days}
             categories={monthData.categories}
             onEdit={beginEdit}
             onCreate={beginCreate}
@@ -769,7 +759,7 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           ) : null}
           <div className="field-block">
             <span>시간</span>
-            <TimeInput value={draft.time} onChange={(time) => setDraft({ ...draft, time })} />
+            <TimeRangeInput value={draft.time} onChange={(time) => setDraft({ ...draft, time })} />
           </div>
           <label>
             <span>담당자</span>
@@ -789,7 +779,7 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
               className="memo-input"
               rows={3}
               value={draft.memo || ""}
-              placeholder="담당자만 참고할 메모나 관련 사이트 링크를 입력하세요. 표에는 보이지 않고, 일정을 눌러야 볼 수 있습니다."
+              placeholder="참고할 메모나 관련 사이트 링크를 입력하세요. 표에는 보이지 않고, 일정을 눌러야 볼 수 있습니다."
               onChange={(event) => setDraft({ ...draft, memo: event.target.value })}
             />
           </label>
@@ -822,6 +812,41 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
       </section>
     </div>
   );
+}
+
+// event.time has always been a single free-text string (imported workbooks
+// commonly write "09:00~10:30" into one cell) - splitting/joining on "~"
+// here keeps that same on-the-wire format while giving the form two proper
+// clock pickers instead of requiring the "~" to be typed by hand.
+function TimeRangeInput({ value, onChange }) {
+  const { start, end } = parseTimeRange(value);
+  return (
+    <div className="time-range-input">
+      <div className="time-range-field">
+        <span className="time-range-label">시작</span>
+        <TimeInput value={start} onChange={(nextStart) => onChange(formatTimeRange(nextStart, end))} />
+      </div>
+      <span className="time-range-sep">~</span>
+      <div className="time-range-field">
+        <span className="time-range-label">종료</span>
+        <TimeInput value={end} onChange={(nextEnd) => onChange(formatTimeRange(start, nextEnd))} />
+      </div>
+    </div>
+  );
+}
+
+function parseTimeRange(value) {
+  const [start = "", end = ""] = String(value ?? "")
+    .split("~")
+    .map((part) => part.trim());
+  return { start, end };
+}
+
+function formatTimeRange(start, end) {
+  const trimmedStart = String(start ?? "").trim();
+  const trimmedEnd = String(end ?? "").trim();
+  if (trimmedStart && trimmedEnd) return `${trimmedStart}~${trimmedEnd}`;
+  return trimmedStart || trimmedEnd;
 }
 
 function TimeInput({ value, onChange }) {
@@ -967,7 +992,7 @@ function currentSchoolYear() {
   return now.getMonth() + 1 >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
-function safeFilename(value) {
+export function safeFilename(value) {
   return String(value ?? "월별행사계획")
     .trim()
     .replace(/[\\/:*?"<>|]+/g, "-")

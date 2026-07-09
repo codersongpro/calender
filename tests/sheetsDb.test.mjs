@@ -18,7 +18,7 @@ test("month loading reads every data sheet in a single batched request", async (
       ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
       ["evt_1", "2026-07-01", "", "행사", "", "월례회", "회의실", "교무", "1", "", "", ""],
     ],
-    "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+    "'Holidays'!A:K": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
     "'Categories'!A:D": [
       ["name", "color", "sortOrder", "active"],
       ["행사", "#2563eb", "10", "TRUE"],
@@ -36,7 +36,7 @@ test("month loading reads every data sheet in a single batched request", async (
     },
   );
 
-  assert.deepEqual(calls, [["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]]);
+  assert.deepEqual(calls, [["'Events'!A:O", "'Holidays'!A:K", "'Categories'!A:D"]]);
   assert.equal(data.days[0].events[0].title, "월례회");
 });
 
@@ -44,7 +44,7 @@ test("month loading reuses a short-lived sheet data cache for fast month changes
   const calls = [];
   const baseBatchGet = mockBatchGet({
     "'Events'!A:O": [["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"]],
-    "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+    "'Holidays'!A:K": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
     "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
   });
   const deps = {
@@ -59,7 +59,7 @@ test("month loading reuses a short-lived sheet data cache for fast month changes
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 7 }, deps);
   await getMonthData({ orgName: "학성초등학교", spreadsheetId: "sheet_2" }, { year: 2026, month: 8 }, deps);
 
-  assert.deepEqual(calls, [["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]]);
+  assert.deepEqual(calls, [["'Events'!A:O", "'Holidays'!A:K", "'Categories'!A:D"]]);
 });
 
 test("month loading preserves workbook imports saved before the endDate column existed", async () => {
@@ -73,7 +73,7 @@ test("month loading preserves workbook imports saved before the endDate column e
           ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
           ["evt_old", "2026-07-03", "행사", "09:00", "업로드 행사", "강당", "교무부", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
         ],
-        "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+        "'Holidays'!A:K": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
         "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
       }),
     },
@@ -109,7 +109,7 @@ test("month loading preserves legacy workbook rows with blank categories", async
           ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt"],
           ["evt_old_blank", "2026-07-03", "", "15:00-16:30", "1학기 담당장학 및 과학실 안전 점검", "3학년 교실, 과학실", "김다래, 송동석", "1", "2026-07-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z", ""],
         ],
-        "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+        "'Holidays'!A:K": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
         "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
       }),
     },
@@ -133,7 +133,7 @@ test("month loading surfaces rows whose dates were coerced to Sheets serial numb
           ["id", "date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "createdAt", "updatedAt", "deletedAt", "reviewNeeded", "importBatchId"],
           ["evt_serial", "46266", "", "", "", "9월~ 기초학력 진단 집중의 달", "", "", "1", "", "", "", "", "batch_1"],
         ],
-        "'Holidays'!A:J": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
+        "'Holidays'!A:K": [["id", "date", "endDate", "name", "type", "source", "isHoliday", "enabled", "memo", "updatedAt"]],
         "'Categories'!A:D": [["name", "color", "sortOrder", "active"]],
       }),
     },

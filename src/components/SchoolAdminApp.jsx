@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { getMonthOptions } from "../lib/domain.js";
-import { PasswordUnlock, StatusBar } from "./PlannerApp.jsx";
+import { PasswordUnlock, safeFilename, StatusBar } from "./PlannerApp.jsx";
 import { GoogleServiceAccountGuide, PublicDataServiceKeyGuide } from "./SetupGuides.jsx";
 
 export default function SchoolAdminApp({ slug }) {
@@ -11,7 +11,14 @@ export default function SchoolAdminApp({ slug }) {
   const [config, setConfig] = useState(null);
   const [schoolYear, setSchoolYear] = useState(currentSchoolYear());
   const [clearMonth, setClearMonth] = useState(new Date().getMonth() + 1);
-  const [holiday, setHoliday] = useState({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
+  const [holiday, setHoliday] = useState({
+    date: "",
+    endDate: "",
+    name: "",
+    type: "재량휴업일",
+    memo: "",
+    includeWeekend: true,
+  });
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -98,6 +105,22 @@ export default function SchoolAdminApp({ slug }) {
     if (data) await loadConfig();
   }
 
+  async function backupData() {
+    const data = await request(`${basePath}/backup`, { label: "자료를 백업했습니다." });
+    if (!data) return;
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const timestamp = new Date().toISOString().slice(0, 10);
+    link.download = `${safeFilename(data.orgName || config.orgName)}-백업-${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function importLegacy() {
     const data = await request(`${basePath}/import`, {
       method: "POST",
@@ -180,7 +203,7 @@ export default function SchoolAdminApp({ slug }) {
       body: holiday,
       label: "휴일을 저장했습니다.",
     });
-    if (data) setHoliday({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "" });
+    if (data) setHoliday({ date: "", endDate: "", name: "", type: "재량휴업일", memo: "", includeWeekend: true });
   }
 
   async function clearEvents(scope) {
@@ -321,6 +344,9 @@ export default function SchoolAdminApp({ slug }) {
               />
             </label>
             <div className="admin-actions wide">
+              <button type="button" className="secondary-button" onClick={backupData} disabled={busy}>
+                자료 백업
+              </button>
               <button type="button" className="secondary-button" onClick={refreshHolidays} disabled={busy}>
                 공휴일 갱신
               </button>
@@ -423,6 +449,14 @@ export default function SchoolAdminApp({ slug }) {
                 value={holiday.endDate}
                 onChange={(event) => setHoliday({ ...holiday, endDate: event.target.value })}
               />
+            </label>
+            <label className="checkbox-label wide">
+              <input
+                type="checkbox"
+                checked={holiday.includeWeekend}
+                onChange={(event) => setHoliday({ ...holiday, includeWeekend: event.target.checked })}
+              />
+              <span>연이은 날짜에 주말 포함 (체크 해제 시 이 휴일은 인접한 주말과 묶어서 "N일 연휴"로 표시하지 않습니다)</span>
             </label>
             <label>
               <span>종류</span>

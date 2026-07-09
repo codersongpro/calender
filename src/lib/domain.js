@@ -20,7 +20,7 @@ export const EVENT_HEADERS = [
 
 export const CATEGORY_HEADERS = ["name", "color", "sortOrder", "active"];
 
-export const EVENT_CATEGORY_OPTIONS = ["출장", "행사", "협의", "심사", "연수", "(직접입력)"];
+export const EVENT_CATEGORY_OPTIONS = ["출장", "행사", "협의", "심사", "연수", "교육", "(직접입력)"];
 
 export const HOLIDAY_HEADERS = [
   "id",
@@ -33,6 +33,7 @@ export const HOLIDAY_HEADERS = [
   "enabled",
   "memo",
   "updatedAt",
+  "includeWeekend",
 ];
 
 export const SETTINGS_HEADERS = ["key", "value", "updatedAt"];
@@ -168,42 +169,47 @@ export function normalizeBoolean(value, defaultValue = false) {
   return defaultValue;
 }
 
-// `includeWeekend: false` stops a holiday run from absorbing an adjacent
-// Saturday/Sunday into the same cluster - a weekday-only holiday right
-// before a weekend then forms its own (shorter) cluster instead of being
-// merged into one long run with the weekend.
-export function calculateHolidayClusters(holidays, start, end, { includeWeekend = true } = {}) {
-  const enabledHolidayDates = new Set(
-    holidays.flatMap((holiday) => {
-      if (!normalizeBoolean(holiday.enabled, true) || !normalizeBoolean(holiday.isHoliday, true)) return [];
-      const dates = [];
-      for (let day = holiday.date; day && day <= getDateRangeEnd(holiday); day = addDays(day, 1)) dates.push(day);
-      return dates;
-    }),
-  );
+// Each holiday's own `includeWeekend` field (checked at entry time, default
+// true) decides whether ITS adjacent Saturday/Sunday joins the cluster - a
+// holiday marked "주말 제외" simply won't reach across the weekend next to
+// it, while one marked "주말 포함" absorbs the whole adjacent weekend block
+// into the same run. Weekends themselves never carry that flag; they only
+// join because a neighboring holiday pulls them in.
+export function calculateHolidayClusters(holidays, start, end) {
+  const enabledHolidayDates = new Set();
+  const weekendBridgeDates = new Set();
   const dateNames = new Map();
 
   for (const holiday of holidays) {
     if (!normalizeBoolean(holiday.enabled, true) || !normalizeBoolean(holiday.isHoliday, true)) continue;
+    const bridgesWeekend = normalizeBoolean(holiday.includeWeekend, true);
     for (let day = holiday.date; day && day <= getDateRangeEnd(holiday); day = addDays(day, 1)) {
+      enabledHolidayDates.add(day);
+      if (bridgesWeekend) weekendBridgeDates.add(day);
       if (!dateNames.has(day)) dateNames.set(day, []);
       dateNames.get(day).push(holiday.name);
     }
   }
 
-  const candidates = [];
+  const candidates = new Set(enabledHolidayDates);
+  // Weekends always come as a Saturday+Sunday pair, so it's enough to walk
+  // Saturdays and pull in the whole pair together when either side of it
+  // touches a bridging holiday date.
   for (let day = start; day <= end; day = addDays(day, 1)) {
-    const date = parseDateKey(day);
-    const weekend = date.getDay() === 0 || date.getDay() === 6;
-    if ((includeWeekend && weekend) || enabledHolidayDates.has(day)) {
-      candidates.push(day);
-    }
+    if (parseDateKey(day).getDay() !== 6) continue;
+    const saturday = day;
+    const sunday = addDays(day, 1);
+    const bridges = weekendBridgeDates.has(addDays(saturday, -1)) || weekendBridgeDates.has(addDays(sunday, 1));
+    if (!bridges) continue;
+    if (saturday >= start && saturday <= end) candidates.add(saturday);
+    if (sunday >= start && sunday <= end) candidates.add(sunday);
   }
 
+  const sortedCandidates = [...candidates].sort();
   const clusters = [];
   let current = null;
 
-  for (const day of candidates) {
+  for (const day of sortedCandidates) {
     if (!current) {
       current = [day];
       continue;
@@ -233,23 +239,6 @@ function pushHolidayCluster(clusters, days, dateNames) {
     names,
     includesWeekend,
   });
-}
-
-// Lets the UI recompute clusters (e.g. for a "주말 포함/제외" toggle) from
-// the already-resolved per-day view buildMonthView produces, instead of
-// needing the original flat holiday list + a server round-trip.
-export function getHolidayClustersForDays(days, options = {}) {
-  if (!days.length) return [];
-  const holidays = days.flatMap((day) =>
-    (day.holidays ?? []).map((holiday) => ({
-      date: day.date,
-      endDate: "",
-      enabled: true,
-      isHoliday: holiday.isHoliday,
-      name: holiday.name,
-    })),
-  );
-  return calculateHolidayClusters(holidays, days[0].date, days[days.length - 1].date, options);
 }
 
 export function rowsToObjects(rows, headers) {

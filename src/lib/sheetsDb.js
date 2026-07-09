@@ -33,9 +33,11 @@ const dataCache = new Map();
 const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter(
   (header) => header !== "endDate" && header !== "reviewNeeded" && header !== "importBatchId" && header !== "memo",
 );
-const LEGACY_HOLIDAY_HEADERS = HOLIDAY_HEADERS.filter((header) => header !== "endDate");
+const LEGACY_HOLIDAY_HEADERS = HOLIDAY_HEADERS.filter((header) => header !== "endDate" && header !== "includeWeekend");
 const EVENTS_LAST_COLUMN = columnLetter(EVENT_HEADERS.length);
 const EVENTS_RANGE_ALL = `'Events'!A:${EVENTS_LAST_COLUMN}`;
+const HOLIDAYS_LAST_COLUMN = columnLetter(HOLIDAY_HEADERS.length);
+const HOLIDAYS_RANGE_ALL = `'Holidays'!A:${HOLIDAYS_LAST_COLUMN}`;
 
 export async function ensureInstitutionDatabase(config) {
   return ensureDatabaseSheets(config.spreadsheetId);
@@ -67,7 +69,7 @@ export async function listCategories(config) {
 
 export async function listHolidays(config) {
   await ensureInstitutionDatabase(config);
-  const rows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
+  const rows = await getValues(config.spreadsheetId, HOLIDAYS_RANGE_ALL);
   return holidaysFromRows(rows);
 }
 
@@ -156,7 +158,7 @@ export async function clearEventsInRange(config, input, deps = {}) {
 }
 
 export async function saveHoliday(config, input) {
-  const rows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
+  const rows = await getValues(config.spreadsheetId, HOLIDAYS_RANGE_ALL);
   const now = new Date().toISOString();
   const holiday = {
     id: input.id || makeId("hol"),
@@ -169,16 +171,17 @@ export async function saveHoliday(config, input) {
     enabled: input.enabled === false ? "FALSE" : "TRUE",
     memo: String(input.memo ?? ""),
     updatedAt: now,
+    includeWeekend: input.includeWeekend === false ? "FALSE" : "TRUE",
   };
 
   const existing = rows.slice(1).findIndex((row) => row[0] === holiday.id);
   if (existing >= 0) {
     const rowNumber = existing + 2;
-    await updateValues(config.spreadsheetId, `'Holidays'!A${rowNumber}:J${rowNumber}`, [
+    await updateValues(config.spreadsheetId, `'Holidays'!A${rowNumber}:${HOLIDAYS_LAST_COLUMN}${rowNumber}`, [
       objectToRow(holiday, HOLIDAY_HEADERS),
     ]);
   } else {
-    await appendValues(config.spreadsheetId, "'Holidays'!A2:J", [objectToRow(holiday, HOLIDAY_HEADERS)]);
+    await appendValues(config.spreadsheetId, `'Holidays'!A2:${HOLIDAYS_LAST_COLUMN}`, [objectToRow(holiday, HOLIDAY_HEADERS)]);
   }
   await logEdit(config, "holiday", holiday.id, "", holiday);
   clearInstitutionDataCache(config.spreadsheetId);
@@ -186,7 +189,7 @@ export async function saveHoliday(config, input) {
 }
 
 export async function replaceAutoHolidays(config, holidays) {
-  const existingRows = await getValues(config.spreadsheetId, "'Holidays'!A:J");
+  const existingRows = await getValues(config.spreadsheetId, HOLIDAYS_RANGE_ALL);
   const existing = holidaysFromRows(existingRows);
   const adminRows = existing.filter((holiday) => holiday.source === "admin");
   const nextRows = [
@@ -194,8 +197,8 @@ export async function replaceAutoHolidays(config, holidays) {
     ...adminRows.map((holiday) => objectToRow(holiday, HOLIDAY_HEADERS)),
     ...holidays.map((holiday) => objectToRow(holiday, HOLIDAY_HEADERS)),
   ];
-  await clearValues(config.spreadsheetId, "'Holidays'!A:J");
-  await updateValues(config.spreadsheetId, `'Holidays'!A1:J${nextRows.length}`, nextRows);
+  await clearValues(config.spreadsheetId, HOLIDAYS_RANGE_ALL);
+  await updateValues(config.spreadsheetId, `'Holidays'!A1:${HOLIDAYS_LAST_COLUMN}${nextRows.length}`, nextRows);
   await logEdit(config, "refresh-holidays", "", "", { count: holidays.length });
   clearInstitutionDataCache(config.spreadsheetId);
   return holidays;
@@ -292,7 +295,7 @@ async function getInstitutionData(config, options = {}) {
   const readBatch = options.batchGetValues ?? batchGetValues;
   const [eventRows, holidayRows, categoryRows] = await readBatch(spreadsheetId, [
     EVENTS_RANGE_ALL,
-    "'Holidays'!A:J",
+    HOLIDAYS_RANGE_ALL,
     "'Categories'!A:D",
   ]);
 

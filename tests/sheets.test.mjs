@@ -79,7 +79,7 @@ test("ensureDatabaseSheets grows an existing sheet's column count before syncing
           sheets: [
             { properties: { sheetId: 1, title: "Events", gridProperties: { columnCount: 12, rowCount: 1000 } } },
             { properties: { sheetId: 2, title: "Categories", gridProperties: { columnCount: 8, rowCount: 1000 } } },
-            { properties: { sheetId: 3, title: "Holidays", gridProperties: { columnCount: 10, rowCount: 1000 } } },
+            { properties: { sheetId: 3, title: "Holidays", gridProperties: { columnCount: 11, rowCount: 1000 } } },
             { properties: { sheetId: 4, title: "Settings", gridProperties: { columnCount: 8, rowCount: 1000 } } },
             { properties: { sheetId: 5, title: "EditLog", gridProperties: { columnCount: 8, rowCount: 1000 } } },
           ],
@@ -134,7 +134,7 @@ test("batchGetValues reads multiple ranges in a single request and preserves ran
           spreadsheetId: "sheet_y",
           valueRanges: [
             { range: "Events!A:O", values: [["evt_1"]] },
-            { range: "Holidays!A:J" },
+            { range: "Holidays!A:K" },
             { range: "Categories!A:D", values: [["행사"]] },
           ],
         }),
@@ -149,14 +149,14 @@ test("batchGetValues reads multiple ranges in a single request and preserves ran
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   });
 
-  const result = await batchGetValues("sheet_y", ["'Events'!A:O", "'Holidays'!A:J", "'Categories'!A:D"]);
+  const result = await batchGetValues("sheet_y", ["'Events'!A:O", "'Holidays'!A:K", "'Categories'!A:D"]);
 
   assert.deepEqual(result, [[["evt_1"]], [], [["행사"]]]);
 
   const batchGetUrl = requestedUrls.find((url) => url.includes(":batchGet"));
   assert.ok(batchGetUrl, "expected a single :batchGet request");
   assert.match(batchGetUrl, /ranges=.*Events.*A%3AO/);
-  assert.match(batchGetUrl, /ranges=.*Holidays.*A%3AJ/);
+  assert.match(batchGetUrl, /ranges=.*Holidays.*A%3AK/);
   assert.match(batchGetUrl, /ranges=.*Categories.*A%3AD/);
   assert.equal(requestedUrls.filter((url) => url.includes(":batchGet")).length, 1);
 });
