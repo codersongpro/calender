@@ -96,17 +96,43 @@ export default function PlannerApp({ slug }) {
       }
       fitsAt(lo);
     }
+    // Row heights are sized via CSS calc() to sum to exactly one page, but
+    // that math can still come up short in practice (rounding, a browser
+    // treating a table's own height as a minimum the same way it does for
+    // td/tr, printer/PDF quirks) - this is the last-resort guarantee that a
+    // day's row is squeezed to visible-but-compressed instead of silently
+    // clipped by print-surface's overflow: hidden.
+    function fitPrintSurfacesToPage() {
+      document.querySelectorAll(".print-surface").forEach((surface) => {
+        const table = surface.querySelector(".planner-table");
+        if (!table) return;
+        table.style.transform = "";
+        const surfaceHeight = surface.clientHeight;
+        const tableHeight = table.getBoundingClientRect().height;
+        if (surfaceHeight > 0 && tableHeight > surfaceHeight) {
+          table.style.transform = `scaleY(${surfaceHeight / tableHeight})`;
+          table.style.transformOrigin = "top left";
+        }
+      });
+    }
+    function resetPrintSurfaceScale() {
+      document.querySelectorAll(".planner-table").forEach((table) => {
+        table.style.transform = "";
+      });
+    }
     function shrinkPrintCellsToFit() {
       const cells = document.querySelectorAll(".planner-table tbody tr > *");
       cells.forEach((cell) => {
         cell.style.fontSize = "";
       });
       cells.forEach((cell) => fitCellToWidth(cell));
+      fitPrintSurfacesToPage();
     }
     function resetPrintCellFontSizes() {
       document.querySelectorAll(".planner-table tbody tr > *").forEach((cell) => {
         cell.style.fontSize = "";
       });
+      resetPrintSurfaceScale();
     }
     function handlePrintMediaChange(event) {
       if (event.matches) shrinkPrintCellsToFit();
