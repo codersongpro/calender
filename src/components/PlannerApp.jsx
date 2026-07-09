@@ -77,7 +77,7 @@ export default function PlannerApp({ slug }) {
         cells.forEach((cell) => {
           cell.style.fontSize = `${size}px`;
         });
-        return !cells.some((cell) => cell.scrollWidth > cell.clientWidth + 0.5);
+        return !cells.some((cell) => cell.scrollWidth > cell.clientWidth);
       };
       if (fitsAt(startSize)) return;
       let lo = floor;
@@ -109,11 +109,23 @@ export default function PlannerApp({ slug }) {
         });
       });
     }
+    function handlePrintMediaChange(event) {
+      if (event.matches) shrinkPrintRowsToFit();
+      else resetPrintRowFontSizes();
+    }
     window.addEventListener("beforeprint", shrinkPrintRowsToFit);
     window.addEventListener("afterprint", resetPrintRowFontSizes);
+    // beforeprint/afterprint timing has historically been inconsistent
+    // across browsers - matchMedia's change event fires exactly when the
+    // browser's rendering actually switches to/from print layout, so it's
+    // kept as a second, more fundamental trigger for the same two functions
+    // (both are idempotent: shrink always resets every row first).
+    const printMediaQuery = window.matchMedia("print");
+    printMediaQuery.addEventListener("change", handlePrintMediaChange);
     return () => {
       window.removeEventListener("beforeprint", shrinkPrintRowsToFit);
       window.removeEventListener("afterprint", resetPrintRowFontSizes);
+      printMediaQuery.removeEventListener("change", handlePrintMediaChange);
     };
   }, []);
 

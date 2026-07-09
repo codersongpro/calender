@@ -1206,15 +1206,20 @@ input[type="file"] {
    * must all be visible, never truncated. Columns are sized generously (see
    * nth-child widths above), but content-driven text length can still vary
    * more than any fixed width can guarantee to fit - shrinkPrintRowsToFit()
-   * in PlannerApp.jsx (registered on window's beforeprint event) measures
-   * each row and shrinks that row's own font-size just enough for every
-   * cell to fit without wrapping, so "..." never has to stand in for real
-   * text.
+   * in PlannerApp.jsx (registered on window's beforeprint/matchMedia('print')
+   * events) measures each row and shrinks that row's own font-size just
+   * enough for every cell to fit without wrapping, so "..." never has to
+   * stand in for real text. overflow: hidden here is only a safety net for
+   * the rare case that JS hasn't run yet when the page is actually printed
+   * (e.g. a slow style recalculation) - it silently clips instead of
+   * bleeding into the next cell, but never fires in the normal case because
+   * the JS pass already guarantees every cell's content fits.
    */
   .planner-table th,
   .planner-table td {
     padding: 0.25mm 0.7mm;
     white-space: nowrap;
+    overflow: hidden;
   }
 
   .planner-table th {
