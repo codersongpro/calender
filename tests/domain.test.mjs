@@ -5,7 +5,6 @@ import {
   buildMonthCsv,
   buildMonthView,
   calculateHolidayClusters,
-  EVENT_CATEGORY_OPTIONS,
   getDayPrintWeight,
   getHolidayLineNames,
   getPrintContentHeightMm,
@@ -415,8 +414,43 @@ test("spreadsheet id is extracted from urls and raw ids", () => {
   );
 });
 
-test("event category options include the fixed choices and direct input marker", () => {
-  assert.deepEqual(EVENT_CATEGORY_OPTIONS, ["출장", "행사", "협의", "심사", "연수", "교육", "(직접입력)"]);
+test("a multi-day event skips weekends inside its range unless includeWeekend is set", () => {
+  // 2026-07-24 is a Friday; the range below covers Fri/Sat/Sun/Mon.
+  const view = buildMonthView({
+    year: 2026,
+    month: 7,
+    events: [
+      {
+        id: "evt_weekday_only",
+        date: "2026-07-24",
+        endDate: "2026-07-27",
+        title: "평일만",
+        category: "행사",
+      },
+      {
+        id: "evt_weekend_included",
+        date: "2026-07-24",
+        endDate: "2026-07-27",
+        title: "주말포함",
+        category: "행사",
+        includeWeekend: true,
+      },
+    ],
+    holidays: [],
+  });
+
+  const titlesByDate = Object.fromEntries(
+    view.days
+      .filter((day) => ["2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27"].includes(day.date))
+      .map((day) => [day.date, day.events.map((event) => event.title)]),
+  );
+
+  assert.deepEqual(titlesByDate, {
+    "2026-07-24": ["평일만", "주말포함"],
+    "2026-07-25": ["주말포함"],
+    "2026-07-26": ["주말포함"],
+    "2026-07-27": ["평일만", "주말포함"],
+  });
 });
 
 test("month data can be exported as CSV including blank days and event rows", () => {

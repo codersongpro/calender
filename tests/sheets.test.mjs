@@ -103,7 +103,7 @@ test("ensureDatabaseSheets grows an existing sheet's column count before syncing
     (req) => req.updateSheetProperties?.properties?.sheetId === 1,
   );
   assert.ok(growEvents, "expected the Events sheet's column count to be grown");
-  assert.equal(growEvents.updateSheetProperties.properties.gridProperties.columnCount, 15);
+  assert.equal(growEvents.updateSheetProperties.properties.gridProperties.columnCount, 16);
 
   const growOthers = batchUpdateCall.batchUpdateBody.requests.filter(
     (req) => req.updateSheetProperties && req.updateSheetProperties.properties.sheetId !== 1,
@@ -133,7 +133,7 @@ test("batchGetValues reads multiple ranges in a single request and preserves ran
         json: async () => ({
           spreadsheetId: "sheet_y",
           valueRanges: [
-            { range: "Events!A:O", values: [["evt_1"]] },
+            { range: "Events!A:P", values: [["evt_1"]] },
             { range: "Holidays!A:K" },
             { range: "Categories!A:D", values: [["행사"]] },
           ],
@@ -149,13 +149,13 @@ test("batchGetValues reads multiple ranges in a single request and preserves ran
     delete process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   });
 
-  const result = await batchGetValues("sheet_y", ["'Events'!A:O", "'Holidays'!A:K", "'Categories'!A:D"]);
+  const result = await batchGetValues("sheet_y", ["'Events'!A:P", "'Holidays'!A:K", "'Categories'!A:D"]);
 
   assert.deepEqual(result, [[["evt_1"]], [], [["행사"]]]);
 
   const batchGetUrl = requestedUrls.find((url) => url.includes(":batchGet"));
   assert.ok(batchGetUrl, "expected a single :batchGet request");
-  assert.match(batchGetUrl, /ranges=.*Events.*A%3AO/);
+  assert.match(batchGetUrl, /ranges=.*Events.*A%3AP/);
   assert.match(batchGetUrl, /ranges=.*Holidays.*A%3AK/);
   assert.match(batchGetUrl, /ranges=.*Categories.*A%3AD/);
   assert.equal(requestedUrls.filter((url) => url.includes(":batchGet")).length, 1);

@@ -31,7 +31,8 @@ import {
 const DATA_CACHE_TTL_MS = 30_000;
 const dataCache = new Map();
 const LEGACY_EVENT_HEADERS = EVENT_HEADERS.filter(
-  (header) => header !== "endDate" && header !== "reviewNeeded" && header !== "importBatchId" && header !== "memo",
+  (header) =>
+    header !== "endDate" && header !== "reviewNeeded" && header !== "importBatchId" && header !== "memo" && header !== "includeWeekend",
 );
 const LEGACY_HOLIDAY_HEADERS = HOLIDAY_HEADERS.filter((header) => header !== "endDate" && header !== "includeWeekend");
 const EVENTS_LAST_COLUMN = columnLetter(EVENT_HEADERS.length);
@@ -106,6 +107,7 @@ export async function createEvent(config, input) {
     reviewNeeded: "",
     importBatchId: "",
     memo: String(input.memo ?? ""),
+    includeWeekend: input.includeWeekend === true ? "TRUE" : "FALSE",
   };
   await appendValues(config.spreadsheetId, `'Events'!A2:${EVENTS_LAST_COLUMN}`, [objectToRow(event, EVENT_HEADERS)]);
   await logEdit(config, "create", event.id, "", event);
@@ -119,6 +121,7 @@ export async function updateEvent(config, id, input) {
   const updated = {
     ...object,
     ...Object.fromEntries(["date", "endDate", "category", "time", "title", "place", "owner", "sortOrder", "reviewNeeded", "memo"].map((key) => [key, input[key] ?? object[key] ?? ""])),
+    ...(input.includeWeekend === undefined ? {} : { includeWeekend: input.includeWeekend === true ? "TRUE" : "FALSE" }),
     updatedAt: new Date().toISOString(),
   };
   await updateValues(config.spreadsheetId, `'Events'!A${rowNumber}:${EVENTS_LAST_COLUMN}${rowNumber}`, [objectToRow(updated, EVENT_HEADERS)]);

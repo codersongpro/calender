@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   buildMonthCsv,
-  EVENT_CATEGORY_OPTIONS,
   getHolidayLineNames,
   getMonthOptions,
   getPrintContentHeightMm,
@@ -26,6 +25,7 @@ const blankEvent = {
   place: "",
   owner: "",
   memo: "",
+  includeWeekend: false,
 };
 
 export default function PlannerApp({ slug }) {
@@ -261,6 +261,7 @@ export default function PlannerApp({ slug }) {
       owner: event.owner,
       sortOrder: event.sortOrder,
       memo: event.memo || "",
+      includeWeekend: normalizeBoolean(event.includeWeekend, false),
     });
     setShowEventForm(true);
   }
@@ -690,8 +691,6 @@ function MobileCards({ days, categories, onEdit, onCreate, onDismissReview, onSh
 }
 
 function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit, onDelete, onClose }) {
-  const categoryChoice = EVENT_CATEGORY_OPTIONS.includes(draft.category) ? draft.category : "(직접입력)";
-  const directCategory = categoryChoice === "(직접입력)";
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
@@ -725,38 +724,29 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
               onChange={(event) => setDraft({ ...draft, endDate: event.target.value })}
             />
           </label>
+          <label className="checkbox-label wide">
+            <input
+              type="checkbox"
+              checked={Boolean(draft.includeWeekend)}
+              onChange={(event) => setDraft({ ...draft, includeWeekend: event.target.checked })}
+            />
+            <span>주말 포함 (체크 해제 시 시작일~종료일 사이의 토·일요일에는 이 행사가 표시되지 않습니다)</span>
+          </label>
           <label>
             <span>구분</span>
-            <select
-              value={categoryChoice}
-              onChange={(event) => {
-                const nextCategory = event.target.value;
-                setDraft({ ...draft, category: nextCategory === "(직접입력)" ? "" : nextCategory });
-              }}
-            >
-              {EVENT_CATEGORY_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
+            <input
+              list="category-list"
+              required
+              value={draft.category}
+              onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+              placeholder="구분 선택 또는 입력"
+            />
+            <datalist id="category-list">
+              {categories.map((category) => (
+                <option key={category.name} value={category.name} />
               ))}
-            </select>
+            </datalist>
           </label>
-          {directCategory ? (
-            <label>
-              <span>구분 직접입력</span>
-              <input
-                list="category-list"
-                value={draft.category}
-                onChange={(event) => setDraft({ ...draft, category: event.target.value })}
-                placeholder="구분 입력"
-              />
-              <datalist id="category-list">
-                {categories.map((category) => (
-                  <option key={category.name} value={category.name} />
-                ))}
-              </datalist>
-            </label>
-          ) : null}
           <div className="field-block">
             <span>시간</span>
             <TimeRangeInput value={draft.time} onChange={(time) => setDraft({ ...draft, time })} />

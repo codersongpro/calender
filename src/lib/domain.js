@@ -16,11 +16,10 @@ export const EVENT_HEADERS = [
   "reviewNeeded",
   "importBatchId",
   "memo",
+  "includeWeekend",
 ];
 
 export const CATEGORY_HEADERS = ["name", "color", "sortOrder", "active"];
-
-export const EVENT_CATEGORY_OPTIONS = ["출장", "행사", "협의", "심사", "연수", "교육", "(직접입력)"];
 
 export const HOLIDAY_HEADERS = [
   "id",
@@ -161,6 +160,21 @@ export function isItemOnDate(item, dateKey) {
 
 export function isItemInRange(item, start, end) {
   return item.date <= end && getDateRangeEnd(item) >= start;
+}
+
+function isWeekendDateKey(dateKey) {
+  const weekday = parseDateKey(dateKey).getDay();
+  return weekday === 0 || weekday === 6;
+}
+
+// A multi-day event's date range doesn't occur on the Saturday/Sunday it
+// spans by default (school events like a week-long program usually mean
+// school days) - includeWeekend on the event opts a specific event into
+// also showing on those weekend days.
+export function isEventOnDate(event, dateKey) {
+  if (!isItemOnDate(event, dateKey)) return false;
+  if (isWeekendDateKey(dateKey) && !normalizeBoolean(event.includeWeekend, false)) return false;
+  return true;
 }
 
 export function normalizeBoolean(value, defaultValue = false) {
@@ -536,7 +550,7 @@ export function buildMonthView({ year, month, events, holidays }) {
     month: Number(month),
     days: days.map((day) => {
       const dayEvents = events
-        .filter((event) => isItemOnDate(event, day.date) && !event.deletedAt)
+        .filter((event) => isEventOnDate(event, day.date) && !event.deletedAt)
         .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || String(a.time).localeCompare(String(b.time)));
       const dayHolidays = holidays.filter(
         (holiday) => isItemOnDate(holiday, day.date) && normalizeBoolean(holiday.enabled, true),
