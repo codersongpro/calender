@@ -691,6 +691,8 @@ function MobileCards({ days, categories, onEdit, onCreate, onDismissReview, onSh
 }
 
 function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit, onDelete, onClose }) {
+  const categoryNames = categories.map((category) => category.name);
+  const directCategory = !categoryNames.includes(draft.category);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
@@ -734,18 +736,29 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           </label>
           <label>
             <span>구분</span>
-            <input
-              list="category-list"
-              required
-              value={draft.category}
-              onChange={(event) => setDraft({ ...draft, category: event.target.value })}
-              placeholder="구분 선택 또는 입력"
-            />
-            <datalist id="category-list">
-              {categories.map((category) => (
-                <option key={category.name} value={category.name} />
-              ))}
-            </datalist>
+            {directCategory ? (
+              <input
+                autoFocus
+                value={draft.category}
+                onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+                placeholder="구분 입력"
+              />
+            ) : (
+              <select
+                value={draft.category}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setDraft({ ...draft, category: next === "(직접입력)" ? "" : next });
+                }}
+              >
+                {categoryNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                <option value="(직접입력)">직접입력</option>
+              </select>
+            )}
           </label>
           <div className="field-block">
             <span>시간</span>
@@ -757,7 +770,7 @@ function EventDialog({ draft, setDraft, categories, editing, canDelete, onSubmit
           </label>
           <label className="wide">
             <span>일정 제목</span>
-            <input value={draft.title} required onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
+            <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
           </label>
           <label className="wide">
             <span>장소</span>

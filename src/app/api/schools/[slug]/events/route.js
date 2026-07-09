@@ -8,7 +8,7 @@ export async function POST(request, context) {
     const { slug } = await context.params;
     const { tenant } = await requireTenantSession(request, slug, "edit");
     const input = await readJson(request);
-    assertRequiredFields(input, ["date", "title"]);
+    assertRequiredFields(input, ["date"]);
     return ok({ event: await createEvent(tenant, input) });
   } catch (error) {
     return fail(error);
