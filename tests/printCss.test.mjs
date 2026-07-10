@@ -32,11 +32,16 @@ test("print font size fills each row's height instead of a flat fraction of it",
   // it as blank padding.
   assert.match(
     printCss,
-    /--print-font-size:\s*clamp\(6px,\s*calc\(\(var\(--print-row-unit\)\s*-\s*0\.5mm\s*-\s*2px\)\s*\/\s*1\.05\),\s*20px\);/,
+    /--print-font-size:\s*clamp\(6px,\s*calc\(\(var\(--print-row-unit\)\s*-\s*0\.5mm\s*-\s*4px\)\s*\/\s*1\.05\),\s*20px\);/,
   );
   assert.match(printCss, /\.planner-table\s*{[^}]*font-size:\s*var\(--print-font-size\);/s);
   assert.match(printCss, /\.category-pill\s*{[^}]*font-size:\s*inherit;/s);
   assert.doesNotMatch(printCss, /\.planner-table\s*{[^}]*font-size:\s*7\.5px;/s);
+  // The pill's vertical border isn't part of the row-height budget - with it,
+  // every event row runs ~2px over --print-row-unit and a dense month pushes
+  // the last day off the page (real print applies @media print AFTER
+  // beforeprint, so no JS pass can rescue a broken CSS budget).
+  assert.match(printCss, /\.category-pill\s*{[^}]*border:\s*0;/s);
 });
 
 test("blank print rows are weighted below a normal row so empty days don't eat readable space", async () => {
@@ -57,7 +62,7 @@ test("blank rows get their own smaller font instead of reusing the full row's fo
   // to full height regardless of the height/max-height above.
   assert.match(
     printCss,
-    /--print-font-size-blank:\s*clamp\(6px,\s*calc\(\(var\(--print-row-unit\)\s*\*\s*0\.5\s*-\s*0\.5mm\s*-\s*2px\)\s*\/\s*1\.05\),\s*14px\);/,
+    /--print-font-size-blank:\s*clamp\(6px,\s*calc\(\(var\(--print-row-unit\)\s*\*\s*0\.5\s*-\s*0\.5mm\s*-\s*3px\)\s*\/\s*1\.05\),\s*14px\);/,
   );
   assert.match(printCss, /\.print-row-blank[\s\S]*?font-size:\s*var\(--print-font-size-blank\);/);
 });

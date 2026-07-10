@@ -199,7 +199,16 @@ export default function PlannerApp({ slug }) {
   }, []);
 
   async function addShortcut() {
-    if (!installPrompt) {
+    // React state can lag the event by a tick, and the click can also land
+    // before Chrome/Edge finish their installability checks (the manifest
+    // and service worker are fetched after page load) - so check the raw
+    // capture directly and, failing that, wait briefly for the event
+    // instead of giving up straight away. Chrome's transient user
+    // activation outlives this short wait, so prompt() still counts as
+    // user-initiated afterwards.
+    let prompt = installPrompt || window.__deferredInstallPrompt || null;
+    if (!prompt) prompt = await waitForInstallPrompt(2000);
+    if (!prompt) {
       // beforeinstallprompt never fires when the app is already installed -
       // getInstalledRelatedApps (backed by related_applications in the
       // manifest) is the only way to tell that apart from "the browser just
@@ -214,14 +223,14 @@ export default function PlannerApp({ slug }) {
       }
       if (alreadyInstalled) {
         setInstalled(true);
-        setStatus("이미 바로가기(앱)가 설치되어 있습니다. 바탕화면이나 홈 화면에서 열 수 있습니다.");
+        setStatus("이미 설치되어 있습니다. 바탕화면이나 홈 화면에서 열 수 있습니다.");
         return;
       }
       setShowInstallHelp(true);
       return;
     }
-    installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
+    prompt.prompt();
+    const choice = await prompt.userChoice;
     if (choice?.outcome === "accepted") setInstalled(true);
     setInstallPrompt(null);
     window.__deferredInstallPrompt = null;
@@ -434,7 +443,7 @@ export default function PlannerApp({ slug }) {
           </button>
           {!installed ? (
             <button type="button" className="highlight-button" onClick={addShortcut}>
-              바로가기 추가
+              바탕화면에 설치
             </button>
           ) : null}
           {config.canEdit ? (
@@ -608,7 +617,7 @@ function InstallHelpDialog({ onClose }) {
     <div className="dialog-backdrop">
       <section className="dialog">
         <header>
-          <h2>바로가기 추가</h2>
+          <h2>바탕화면에 설치</h2>
           <button type="button" className="icon-button" onClick={onClose} aria-label="닫기">
             x
           </button>
@@ -625,10 +634,15 @@ function InstallHelpDialog({ onClose }) {
             <li>"앱 설치" 또는 "홈 화면에 추가"를 선택하세요.</li>
           </ol>
         ) : (
-          <ol className="install-help-steps">
-            <li>브라우저 주소창 오른쪽의 설치 아이콘을 누르거나, 브라우저 메뉴에서 "설치"를 선택하세요.</li>
-            <li>설치하면 바탕화면/시작 메뉴에서 바로 열 수 있습니다.</li>
-          </ol>
+          <>
+            <ol className="install-help-steps">
+              <li>주소창 오른쪽 끝의 설치 아이콘(화면에 ↓ 모양)을 누르거나, 브라우저 메뉴(⋮)에서 "캘린더 설치" 또는 "앱 설치"를 선택하세요.</li>
+              <li>설치하면 바탕화면과 시작 메뉴에 아이콘이 생기고, 다음부터는 거기서 바로 열 수 있습니다.</li>
+            </ol>
+            <p className="field-help">
+              설치 아이콘이 보이지 않으면 이미 설치되어 있는 경우입니다. 바탕화면이나 시작 메뉴에서 앱을 찾아 여세요.
+            </p>
+          </>
         )}
         <div className="dialog-actions wide">
           <button type="button" className="primary-button" onClick={onClose}>
@@ -693,7 +707,11 @@ function PlannerTable({ days, categories, onEdit, onCreate, onDismissReview, onS
                       <ReviewBadge event={event} canEdit={canEdit} onDismiss={onDismissReview} />
                     ) : null}
                     {event.memo ? <span className="memo-badge">memo</span> : null}
-                    {event.title}
+                    {/* An empty title collapses this button to zero height,
+                        leaving nothing to click - which made untitled events
+                        impossible to edit or delete. The placeholder is
+                        screen-only (hidden in print). */}
+                    {event.title || <span className="untitled-event">(제목 없음)</span>}
                   </button>
                 ) : null}
               </td>
@@ -740,7 +758,7 @@ function MobileCards({ days, categories, onEdit, onCreate, onDismissReview, onSh
                   ) : null}
                   {event.memo ? <span className="memo-badge">memo</span> : null}
                 </span>
-                <strong>{event.title}</strong>
+                <strong>{event.title || <span className="untitled-event">(제목 없음)</span>}</strong>
                 <small>{[event.place, event.owner].filter(Boolean).join(" · ")}</small>
               </button>
             ))
@@ -1065,6 +1083,32 @@ function dayClass(day) {
   if (day.isSunday) return "sunday-row";
   if (day.isSaturday) return "saturday-row";
   return "";
+}
+
+// Resolves with the captured beforeinstallprompt event as soon as the head
+// script's "deferredinstallpromptready" signal arrives, or null after the
+// timeout - lets the install button wait out the gap between the click and
+// Chrome finishing its installability evaluation.
+function waitForInstallPrompt(timeoutMs) {
+  return new Promise((resolve) => {
+    if (window.__deferredInstallPrompt) {
+      resolve(window.__deferredInstallPrompt);
+      return;
+    }
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, timeoutMs);
+    function onReady() {
+      cleanup();
+      resolve(window.__deferredInstallPrompt ?? null);
+    }
+    function cleanup() {
+      clearTimeout(timer);
+      window.removeEventListener("deferredinstallpromptready", onReady);
+    }
+    window.addEventListener("deferredinstallpromptready", onReady);
+  });
 }
 
 function currentSchoolYear() {

@@ -472,6 +472,15 @@ input[type="file"] {
   vertical-align: middle;
 }
 
+/* Screen-only stand-in for events saved without a title: without visible
+   text the row's click target collapses to nothing, making the event
+   impossible to open (and so impossible to edit or delete). Hidden in
+   print. */
+.untitled-event {
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .memo-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1134,14 +1143,22 @@ input[type="file"] {
        information. */
     --print-row-unit: calc((var(--print-page-height) - var(--print-title-height) - var(--print-header-height) - 3mm) / var(--print-row-weight, 31));
     /* Font that fills a normal row: row height minus the cell's vertical
-       padding (0.25mm top + bottom) and border (1px top + bottom), divided
-       by the 1.05 line-height so the text block doesn't overflow the row. */
-    --print-font-size: clamp(6px, calc((var(--print-row-unit) - 0.5mm - 2px) / 1.05), 20px);
+       padding (0.25mm top + bottom), border (1px top + bottom), and 1px of
+       sub-pixel rounding headroom, divided by the 1.05 line-height so the
+       text block doesn't overflow the row. This must be an upper bound on
+       every row's real content height: a table row's height is only a
+       minimum, so any content taller than the unit makes the whole month
+       run past the page bottom and clips the last day (which is also why
+       the category pills lose their vertical border in print below - their
+       extra 2px per row silently broke this budget). Real Chrome print
+       fires beforeprint against the SCREEN layout, so no JS pass can
+       correct a broken print budget - the CSS must be exact on its own. */
+    --print-font-size: clamp(6px, calc((var(--print-row-unit) - 0.5mm - 4px) / 1.05), 20px);
     /* Blank rows are only PRINT_BLANK_ROW_WEIGHT (0.5) of a normal row tall
        (kept in sync with domain.js), so they need their own smaller font -
        a table cell's height is a minimum, not a cap, so reusing the normal
        font here would just force blank rows back to full height. */
-    --print-font-size-blank: clamp(6px, calc((var(--print-row-unit) * 0.5 - 0.5mm - 2px) / 1.05), 14px);
+    --print-font-size-blank: clamp(6px, calc((var(--print-row-unit) * 0.5 - 0.5mm - 3px) / 1.05), 14px);
   }
 
   html,
@@ -1161,7 +1178,8 @@ input[type="file"] {
   .date-button,
   .event-title,
   .review-badge,
-  .memo-badge {
+  .memo-badge,
+  .untitled-event {
     display: none !important;
   }
 
@@ -1284,7 +1302,10 @@ input[type="file"] {
 
   .planner-table th {
     height: var(--print-header-height);
-    font-size: clamp(7px, calc(var(--print-font-size) * 1.08), 18px);
+    /* Cap at what actually fits inside --print-header-height (5mm ≈ 18.9px
+       minus padding/border/line-height) - an 18px cap could push the header
+       row past its budget and eat into the last day's room. */
+    font-size: clamp(7px, calc(var(--print-font-size) * 1.08), 14px);
   }
 
   .planner-table th,
@@ -1343,6 +1364,11 @@ input[type="file"] {
     padding: 0 3px;
     font-size: inherit;
     line-height: 1.05;
+    /* The pill's 1px top/bottom border made every event row ~2px taller
+       than --print-row-unit budgets for, which accumulated across a dense
+       month into the last day being pushed off the page. The tinted
+       background alone still reads as a pill at print sizes. */
+    border: 0;
   }
 
   @page {
