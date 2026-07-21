@@ -313,6 +313,13 @@ input[type="file"] {
   margin: 18px clamp(16px, 4vw, 44px) 48px;
 }
 
+/* Institution name shown small at the top-right corner of each printed page
+   only; the org name already appears in the on-screen topbar, so hide it on
+   screen. */
+.print-org-name {
+  display: none;
+}
+
 .print-title {
   display: flex;
   align-items: baseline;
@@ -1200,6 +1207,23 @@ input[type="file"] {
     page-break-after: avoid;
     transform: none;
     width: 100%;
+    /* Anchor for the absolutely-positioned org name in the top-right corner. */
+    position: relative;
+  }
+
+  /* Institution name, small, in the top-right corner of the printed page.
+     Absolutely positioned so it overlays the surface without consuming any of
+     the tightly-budgeted vertical space the row-height math depends on. */
+  .print-org-name {
+    display: block;
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: #333;
+    line-height: 1;
+    z-index: 1;
   }
 
   /* Forces the next page group onto a new sheet when printing split across

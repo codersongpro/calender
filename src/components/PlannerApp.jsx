@@ -374,6 +374,27 @@ export default function PlannerApp({ slug }) {
     }
   }
 
+  function printPlanner() {
+    if (!monthData) {
+      window.print();
+      return;
+    }
+    // The browser uses document.title as the default "Save as PDF" filename,
+    // so set it to e.g. "26년_03월_○○초월중행사계획" just for the print dialog
+    // and restore the original title once printing finishes.
+    const orgName = monthData.config?.orgName || config.orgName || "";
+    const yy = String(monthData.year).slice(-2).padStart(2, "0");
+    const mm = String(monthData.month).padStart(2, "0");
+    const previousTitle = document.title;
+    document.title = safeFilename(`${yy}년_${mm}월_${orgName}월중행사계획`);
+    const restore = () => {
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  }
+
   function downloadMonthCsv() {
     if (!monthData) return;
     const csv = `\ufeff${buildMonthCsv({ ...monthData, schoolYear })}`;
@@ -435,7 +456,7 @@ export default function PlannerApp({ slug }) {
           <h1>{monthData?.config?.orgName || config.orgName}</h1>
         </div>
         <div className="top-actions">
-          <button type="button" className="ghost-button" onClick={() => window.print()}>
+          <button type="button" className="ghost-button" onClick={printPlanner}>
             인쇄
           </button>
           <button type="button" className="ghost-button" onClick={downloadMonthCsv} disabled={!monthData}>
@@ -519,6 +540,7 @@ export default function PlannerApp({ slug }) {
         <>
           {printPageGroups.map((pageDays, index) => (
             <section key={index} className={`print-surface${index < printPageGroups.length - 1 ? " print-page-break" : ""}`}>
+              <span className="print-org-name">{monthData.config?.orgName || config.orgName}</span>
               <div className="print-title">
                 <h2>[{monthData.month}월중 행사 계획]</h2>
                 <p>
