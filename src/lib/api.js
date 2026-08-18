@@ -128,7 +128,7 @@ function sessionCookieOptions(scope) {
 
 function scopeMaxAge(scope) {
   if (scope === "view") return 60 * 60 * 12;
-  if (scope === "edit") return 60 * 60 * 8;
+  if (scope === "edit") return 60 * 60 * 24 * 7;
   return 60 * 60 * 2;
 }
 
