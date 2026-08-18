@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildMonthCsv,
@@ -46,8 +46,25 @@ export default function PlannerApp({ slug }) {
   const [installed, setInstalled] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [viewingMemoEvent, setViewingMemoEvent] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [pendingFocus, setPendingFocus] = useState(null);
+  const [excludedCategories, setExcludedCategories] = useState(() => new Set());
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const searchBandRef = useRef(null);
+  const filterBandRef = useRef(null);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
-  const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
+  const filteredDays = useMemo(() => {
+    if (!monthData) return [];
+    if (!excludedCategories.size) return monthData.days;
+    return monthData.days.map((day) => ({
+      ...day,
+      events: day.events.filter((event) => !excludedCategories.has(event.category)),
+    }));
+  }, [monthData, excludedCategories]);
+  const printPageGroups = monthData ? splitDaysForPrint(filteredDays, printPages) : [];
 
   useEffect(() => {
     loadConfig();
@@ -249,6 +266,56 @@ export default function PlannerApp({ slug }) {
     return () => window.removeEventListener("storage", handlePlannerChanged);
   }, [config?.authenticated, slug, schoolYear, month]);
 
+  useEffect(() => {
+    if (!config?.authenticated) return;
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearching(false);
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const data = await request(`${basePath}/search?q=${encodeURIComponent(query)}`, { quiet: true });
+      setSearching(false);
+      setSearchResults(data?.results || []);
+      setShowSearchResults(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, basePath, config?.authenticated]);
+
+  useEffect(() => {
+    if (!showSearchResults) return;
+    function handleClickOutside(event) {
+      if (searchBandRef.current && !searchBandRef.current.contains(event.target)) setShowSearchResults(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSearchResults]);
+
+  useEffect(() => {
+    if (!showFilterPanel) return;
+    function handleClickOutside(event) {
+      if (filterBandRef.current && !filterBandRef.current.contains(event.target)) setShowFilterPanel(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showFilterPanel]);
+
+  useEffect(() => {
+    if (!pendingFocus || !monthData) return;
+    // Wait until the month actually loaded matches the search result's month
+    // (schoolYear/month may still be mid-transition) before deciding the
+    // event is missing - jumping the gun would drop a still-loading result.
+    if (monthData.year !== pendingFocus.year || monthData.month !== pendingFocus.month) return;
+    const target = monthData.days.flatMap((day) => day.events).find((event) => event.id === pendingFocus.id);
+    setPendingFocus(null);
+    if (!target) return;
+    if (config?.canEdit) beginEdit(target);
+    else if (target.memo) setViewingMemoEvent(target);
+  }, [monthData, pendingFocus, config?.canEdit]);
+
   async function loadConfig() {
     await request(`${basePath}/config`, { setData: setConfig, label: "설정을 불러왔습니다.", quiet: true });
   }
@@ -321,6 +388,28 @@ export default function PlannerApp({ slug }) {
       includeWeekend: normalizeBoolean(event.includeWeekend, false),
     });
     setShowEventForm(true);
+  }
+
+  function toggleCategoryFilter(name) {
+    setExcludedCategories((previous) => {
+      const next = new Set(previous);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  function clearCategoryFilter() {
+    setExcludedCategories(new Set());
+  }
+
+  function selectSearchResult(result) {
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSearchResults(false);
+    setPendingFocus({ id: result.id, year: result.year, month: result.month });
+    setSchoolYear(result.schoolYear);
+    setMonth(result.month);
   }
 
   async function submitEvent(event) {
@@ -397,7 +486,7 @@ export default function PlannerApp({ slug }) {
 
   function downloadMonthCsv() {
     if (!monthData) return;
-    const csv = `\ufeff${buildMonthCsv({ ...monthData, schoolYear })}`;
+    const csv = `\ufeff${buildMonthCsv({ ...monthData, schoolYear, days: filteredDays })}`;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -530,6 +619,81 @@ export default function PlannerApp({ slug }) {
             <option value={2}>2페이지로 나누기</option>
           </select>
         </label>
+        <div className="filter-band" ref={filterBandRef}>
+          <span className="filter-label">구분 필터</span>
+          <button
+            type="button"
+            className={`ghost-button filter-toggle${excludedCategories.size ? " active" : ""}`}
+            onClick={() => setShowFilterPanel((value) => !value)}
+          >
+            {excludedCategories.size
+              ? `${(monthData?.categories?.length || 0) - excludedCategories.size}/${monthData?.categories?.length || 0}개 표시`
+              : "전체 표시"}
+          </button>
+          {showFilterPanel ? (
+            <div className="filter-panel">
+              <div className="filter-panel-header">
+                <span>표시할 구분 선택</span>
+                <button type="button" className="filter-reset" onClick={clearCategoryFilter} disabled={!excludedCategories.size}>
+                  전체 선택
+                </button>
+              </div>
+              <ul>
+                {(monthData?.categories || []).map((category) => (
+                  <li key={category.name}>
+                    <label className="filter-check">
+                      <input
+                        type="checkbox"
+                        checked={!excludedCategories.has(category.name)}
+                        onChange={() => toggleCategoryFilter(category.name)}
+                      />
+                      <span className="category-pill" style={{ "--pill": category.color || "#475569" }}>
+                        {category.name}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        <div className="search-band" ref={searchBandRef}>
+          <label>
+            <span>검색</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
+              placeholder="제목, 장소, 담당자, 메모 검색"
+            />
+          </label>
+          {showSearchResults ? (
+            <div className="search-results">
+              {searching ? (
+                <p className="search-empty">검색 중...</p>
+              ) : searchResults.length ? (
+                <ul>
+                  {searchResults.map((result) => (
+                    <li key={result.id}>
+                      <button type="button" onClick={() => selectSearchResult(result)}>
+                        <span className="search-result-date">
+                          {result.year}.{result.month}.{Number(String(result.date).split("-")[2])}
+                        </span>
+                        <span className="search-result-title">{result.title || "(제목 없음)"}</span>
+                        <span className="search-result-meta">
+                          {[result.category, result.place].filter(Boolean).join(" · ")}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="search-empty">검색 결과가 없습니다.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <StatusBar status={status} error={error} />
@@ -560,7 +724,7 @@ export default function PlannerApp({ slug }) {
             </section>
           ))}
           <MobileCards
-            days={monthData.days}
+            days={filteredDays}
             categories={monthData.categories}
             onEdit={beginEdit}
             onCreate={beginCreate}
