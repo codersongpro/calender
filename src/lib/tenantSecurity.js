@@ -68,6 +68,6 @@ function bearerTokenFromRequest(request) {
 
 function defaultTtlMs(scope) {
   if (scope === "view") return 1000 * 60 * 60 * 12;
-  if (scope === "edit") return 1000 * 60 * 60 * 8;
+  if (scope === "edit") return 1000 * 60 * 60 * 24 * 7;
   return 1000 * 60 * 60 * 2;
 }
