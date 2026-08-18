@@ -51,9 +51,20 @@ export default function PlannerApp({ slug }) {
   const [searching, setSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [pendingFocus, setPendingFocus] = useState(null);
+  const [excludedCategories, setExcludedCategories] = useState(() => new Set());
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const searchBandRef = useRef(null);
+  const filterBandRef = useRef(null);
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
-  const printPageGroups = monthData ? splitDaysForPrint(monthData.days, printPages) : [];
+  const filteredDays = useMemo(() => {
+    if (!monthData) return [];
+    if (!excludedCategories.size) return monthData.days;
+    return monthData.days.map((day) => ({
+      ...day,
+      events: day.events.filter((event) => !excludedCategories.has(event.category)),
+    }));
+  }, [monthData, excludedCategories]);
+  const printPageGroups = monthData ? splitDaysForPrint(filteredDays, printPages) : [];
 
   useEffect(() => {
     loadConfig();
@@ -284,6 +295,15 @@ export default function PlannerApp({ slug }) {
   }, [showSearchResults]);
 
   useEffect(() => {
+    if (!showFilterPanel) return;
+    function handleClickOutside(event) {
+      if (filterBandRef.current && !filterBandRef.current.contains(event.target)) setShowFilterPanel(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showFilterPanel]);
+
+  useEffect(() => {
     if (!pendingFocus || !monthData) return;
     // Wait until the month actually loaded matches the search result's month
     // (schoolYear/month may still be mid-transition) before deciding the
@@ -370,6 +390,19 @@ export default function PlannerApp({ slug }) {
     setShowEventForm(true);
   }
 
+  function toggleCategoryFilter(name) {
+    setExcludedCategories((previous) => {
+      const next = new Set(previous);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  function clearCategoryFilter() {
+    setExcludedCategories(new Set());
+  }
+
   function selectSearchResult(result) {
     setSearchQuery("");
     setSearchResults([]);
@@ -453,7 +486,7 @@ export default function PlannerApp({ slug }) {
 
   function downloadMonthCsv() {
     if (!monthData) return;
-    const csv = `\ufeff${buildMonthCsv({ ...monthData, schoolYear })}`;
+    const csv = `\ufeff${buildMonthCsv({ ...monthData, schoolYear, days: filteredDays })}`;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -586,6 +619,44 @@ export default function PlannerApp({ slug }) {
             <option value={2}>2페이지로 나누기</option>
           </select>
         </label>
+        <div className="filter-band" ref={filterBandRef}>
+          <span className="filter-label">구분 필터</span>
+          <button
+            type="button"
+            className={`ghost-button filter-toggle${excludedCategories.size ? " active" : ""}`}
+            onClick={() => setShowFilterPanel((value) => !value)}
+          >
+            {excludedCategories.size
+              ? `${(monthData?.categories?.length || 0) - excludedCategories.size}/${monthData?.categories?.length || 0}개 표시`
+              : "전체 표시"}
+          </button>
+          {showFilterPanel ? (
+            <div className="filter-panel">
+              <div className="filter-panel-header">
+                <span>표시할 구분 선택</span>
+                <button type="button" className="filter-reset" onClick={clearCategoryFilter} disabled={!excludedCategories.size}>
+                  전체 선택
+                </button>
+              </div>
+              <ul>
+                {(monthData?.categories || []).map((category) => (
+                  <li key={category.name}>
+                    <label className="filter-check">
+                      <input
+                        type="checkbox"
+                        checked={!excludedCategories.has(category.name)}
+                        onChange={() => toggleCategoryFilter(category.name)}
+                      />
+                      <span className="category-pill" style={{ "--pill": category.color || "#475569" }}>
+                        {category.name}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
         <div className="search-band" ref={searchBandRef}>
           <label>
             <span>검색</span>
@@ -653,7 +724,7 @@ export default function PlannerApp({ slug }) {
             </section>
           ))}
           <MobileCards
-            days={monthData.days}
+            days={filteredDays}
             categories={monthData.categories}
             onEdit={beginEdit}
             onCreate={beginCreate}
