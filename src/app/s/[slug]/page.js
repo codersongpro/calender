@@ -30,6 +30,16 @@ export async function generateMetadata({ params }) {
 
 export async function generateViewport() {
   return {
+    // A custom viewport export replaces Next's default meta tag entirely
+    // rather than merging into it, so width/initialScale have to be repeated
+    // here - otherwise this page (the only route with a custom viewport,
+    // for themeColor) silently loses width=device-width, initial-scale=1.
+    // Without it mobile browsers render the dense planner table at desktop
+    // width and scale it down, which leaves native double-tap-to-zoom active
+    // and makes a double-tap on a date button trigger a jarring full-page
+    // zoom instead of two ordinary clicks.
+    width: "device-width",
+    initialScale: 1,
     themeColor: "#1d6f8f",
   };
 }
