@@ -9,7 +9,7 @@ import {
 } from "./rateLimit.js";
 import { getTenantBySlug } from "./tenantStore.js";
 import { getOperatorPasswordHash } from "./tenantStore.js";
-import { publicTenantSummary, requireActiveTenant, tenantRequiresViewAuth } from "./tenantDomain.js";
+import { publicTenantSummary, requireActiveTenant } from "./tenantDomain.js";
 import {
   createScopedSessionToken,
   readTenantSessionPayload,
@@ -52,21 +52,17 @@ export async function requireTenantSession(request, slug, requiredScope) {
   return { tenant, payload };
 }
 
-export async function createTenantAuthResponse(request, tenant, scope, password) {
-  if (scope === "view" && !tenantRequiresViewAuth(tenant)) {
-    return ok({ authenticated: true, scope });
-  }
-  const attemptKey = authAttemptKey(request, `tenant:${tenant.slug}:${scope}`);
+export async function createTenantAuthResponse(request, tenant, password) {
+  const attemptKey = authAttemptKey(request, `tenant:${tenant.slug}:admin`);
   assertAuthAttemptAllowed(attemptKey);
-  const passwordHash = tenantPasswordHash(tenant, scope);
-  if (!(await verifyPassword(String(password ?? ""), passwordHash))) {
+  if (!(await verifyPassword(String(password ?? ""), tenant.adminPasswordHash))) {
     recordAuthFailure(attemptKey);
     throw httpError("비밀번호가 올바르지 않습니다.", 401);
   }
   recordAuthSuccess(attemptKey);
-  const token = createScopedSessionToken(tenant, scope);
-  const response = ok({ authenticated: true, scope });
-  response.cookies.set(schoolSessionCookieName(tenant.slug, scope), token, sessionCookieOptions(scope));
+  const token = createScopedSessionToken(tenant, "admin");
+  const response = ok({ authenticated: true, scope: "admin" });
+  response.cookies.set(schoolSessionCookieName(tenant.slug, "admin"), token, sessionCookieOptions());
   return response;
 }
 
@@ -85,7 +81,7 @@ export async function createOperatorAuthResponse(request, password) {
     operatorSessionSecret(),
   );
   const response = ok({ authenticated: true, scope: "operator" });
-  response.cookies.set(OPERATOR_COOKIE, token, sessionCookieOptions("operator"));
+  response.cookies.set(OPERATOR_COOKIE, token, sessionCookieOptions());
   return response;
 }
 
@@ -109,27 +105,14 @@ export function assertRequiredFields(input, fields) {
 }
 
 
-function tenantPasswordHash(tenant, scope) {
-  if (scope === "view") return tenant.viewPasswordHash;
-  if (scope === "edit") return tenant.editPasswordHash;
-  if (scope === "admin") return tenant.adminPasswordHash;
-  throw new Error("올바른 권한 범위가 아닙니다.");
-}
-
-function sessionCookieOptions(scope) {
+function sessionCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: scopeMaxAge(scope),
+    maxAge: 60 * 60 * 2,
   };
-}
-
-function scopeMaxAge(scope) {
-  if (scope === "view") return 60 * 60 * 12;
-  if (scope === "edit") return 60 * 60 * 24 * 7;
-  return 60 * 60 * 2;
 }
 
 function operatorSessionSecret() {

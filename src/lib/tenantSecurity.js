@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 
 import { createSessionToken, verifySessionToken } from "./security.js";
-import { tenantRequiresViewAuth } from "./tenantDomain.js";
 
 const SCHOOL_SCOPE_RANK = {
   view: 1,
@@ -43,21 +42,20 @@ export function schoolSessionCookieName(slug, scope) {
   return `school_${scope}_${slugHash}`;
 }
 
-// Resolve the effective session for a tenant request. Scoped cookies (and a
-// bearer token) are checked first so a stronger session (admin/edit) is
-// recognized even on public-view tenants; only when no session is present does
-// a publicly viewable tenant fall back to an anonymous view payload.
+// Resolve the effective session for a tenant request. View and edit no longer
+// require a password - only the admin cookie (or bearer token) is checked, so
+// an admin session still stands out from anonymous visitors; any other
+// requiredScope falls back to an anonymous public payload.
 export function readTenantSessionPayload(request, tenant, requiredScope) {
-  for (const scope of ["admin", "edit", "view"]) {
-    const token = request.cookies?.get(schoolSessionCookieName(tenant.slug, scope))?.value;
-    const payload = verifyScopedSessionToken(token, tenant, requiredScope);
-    if (payload) return payload;
-  }
+  const token = request.cookies?.get(schoolSessionCookieName(tenant.slug, "admin"))?.value;
+  const payload = verifyScopedSessionToken(token, tenant, requiredScope);
+  if (payload) return payload;
+
   const bearerPayload = verifyScopedSessionToken(bearerTokenFromRequest(request), tenant, requiredScope);
   if (bearerPayload) return bearerPayload;
 
-  if (requiredScope === "view" && !tenantRequiresViewAuth(tenant)) {
-    return { tenantId: tenant.id, slug: tenant.slug, scope: "view", public: true };
+  if (requiredScope !== "admin") {
+    return { tenantId: tenant.id, slug: tenant.slug, scope: requiredScope, public: true };
   }
   return null;
 }
@@ -66,8 +64,6 @@ function bearerTokenFromRequest(request) {
   return request.headers?.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
 }
 
-function defaultTtlMs(scope) {
-  if (scope === "view") return 1000 * 60 * 60 * 12;
-  if (scope === "edit") return 1000 * 60 * 60 * 24 * 7;
+function defaultTtlMs() {
   return 1000 * 60 * 60 * 2;
 }

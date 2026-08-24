@@ -18,12 +18,11 @@ export function normalizeTenantSlug(value) {
 }
 
 export function publicTenantSummary(tenant) {
-  if (!tenant) return { exists: false, authRequired: true };
+  if (!tenant) return { exists: false };
   return {
     exists: true,
     slug: tenant.slug,
     status: tenant.status,
-    authRequired: tenantRequiresViewAuth(tenant),
   };
 }
 
@@ -31,8 +30,4 @@ export function requireActiveTenant(tenant) {
   if (!tenant) throw new Error("학교를 찾을 수 없습니다.");
   if (tenant.status !== "active") throw new Error("이 학교 사이트는 현재 중지되었습니다.");
   return tenant;
-}
-
-export function tenantRequiresViewAuth(tenant) {
-  return Boolean(String(tenant?.viewPasswordHash ?? "").trim());
 }

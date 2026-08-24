@@ -307,20 +307,6 @@ export default function SchoolAdminApp({ slug }) {
             <input name="spreadsheetUrl" defaultValue={config.spreadsheetId} required />
           </label>
           <label>
-            <span>조회 비밀번호 변경</span>
-            <input name="viewPassword" type="password" minLength={4} />
-          </label>
-          {config.authRequired ? (
-            <label className="checkbox-label wide">
-              <input type="checkbox" name="clearViewPassword" value="true" />
-              <span>조회 비밀번호 없이 주소만으로 볼 수 있게 변경</span>
-            </label>
-          ) : null}
-          <label>
-            <span>편집 비밀번호 변경</span>
-            <input name="editPassword" type="password" minLength={4} />
-          </label>
-          <label>
             <span>학교 운영자 비밀번호 변경</span>
             <input name="adminPassword" type="password" minLength={4} />
           </label>

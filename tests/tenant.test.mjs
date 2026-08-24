@@ -41,8 +41,6 @@ test("public tenant summary never exposes private configuration", () => {
     slug: "school-a",
     orgName: "가람초등학교",
     spreadsheetId: "secret-sheet",
-    viewPasswordHash: "view-hash",
-    editPasswordHash: "edit-hash",
     adminPasswordHash: "admin-hash",
     appSecret: "secret",
     status: "active",
@@ -52,24 +50,7 @@ test("public tenant summary never exposes private configuration", () => {
     exists: true,
     slug: "school-a",
     status: "active",
-    authRequired: true,
   });
-});
-
-test("public tenant summary does not require auth when view password is empty", () => {
-  const summary = publicTenantSummary({
-    id: "tenant_1",
-    slug: "school-a",
-    orgName: "Public School",
-    spreadsheetId: "secret-sheet",
-    viewPasswordHash: "",
-    editPasswordHash: "edit-hash",
-    adminPasswordHash: "admin-hash",
-    appSecret: "secret",
-    status: "active",
-  });
-
-  assert.equal(summary.authRequired, false);
 });
 
 test("suspended tenants are blocked before sheet data is read", () => {
@@ -143,8 +124,6 @@ test("tenant create records hash every school password and extract spreadsheet i
     slug: " Seoul ES ",
     orgName: "서울초등학교",
     spreadsheetUrl: "https://docs.google.com/spreadsheets/d/1uvYR2gcjBBVU-YOn7bVpREp7RXeU-D6L52tvCFsJ-2Y/edit",
-    viewPassword: "view-secret",
-    editPassword: "edit-secret",
     adminPassword: "admin-secret",
   });
 
@@ -153,32 +132,18 @@ test("tenant create records hash every school password and extract spreadsheet i
   assert.equal(record.spreadsheetId, "1uvYR2gcjBBVU-YOn7bVpREp7RXeU-D6L52tvCFsJ-2Y");
   assert.equal(record.status, "active");
   assert.match(record.appSecret, /^[a-f0-9]{32}$/);
-  assert.equal(await verifyPassword("view-secret", record.viewPasswordHash), true);
-  assert.equal(await verifyPassword("edit-secret", record.editPasswordHash), true);
+  assert.equal(record.viewPasswordHash, "");
+  assert.equal(record.editPasswordHash, "");
   assert.equal(await verifyPassword("admin-secret", record.adminPasswordHash), true);
 });
 
-test("tenant create records allow public view by default", async () => {
-  const record = await buildTenantCreateRecord({
-    slug: "school-a",
-    orgName: "Public School",
-    spreadsheetUrl: "sheet-id-12345678901234567890",
-    editPassword: "edit-secret",
-    adminPassword: "admin-secret",
-  });
-
-  assert.equal(record.viewPasswordHash, "");
-});
-
-test("tenant create records require all three school passwords", async () => {
+test("tenant create records require the admin password", async () => {
   await assert.rejects(
     () =>
       buildTenantCreateRecord({
         slug: "school-a",
         orgName: "가람초등학교",
         spreadsheetUrl: "sheet-id-12345678901234567890",
-        viewPassword: "view-secret",
-        editPassword: "edit-secret",
       }),
     /관리 비밀번호/,
   );
@@ -188,16 +153,18 @@ test("tenant update patches only include provided changes and hashed new passwor
   const patch = await buildTenantUpdatePatch({
     orgName: " 다온초 ",
     spreadsheetUrl: "",
-    viewPassword: "new-view",
-    editPassword: "",
     adminPassword: "",
   });
 
   assert.equal(patch.orgName, "다온초");
   assert.equal("spreadsheetId" in patch, false);
-  assert.equal("editPasswordHash" in patch, false);
   assert.equal("adminPasswordHash" in patch, false);
-  assert.equal(await verifyPassword("new-view", patch.viewPasswordHash), true);
+});
+
+test("tenant update patches hash a new admin password when provided", async () => {
+  const patch = await buildTenantUpdatePatch({ adminPassword: "new-admin" });
+
+  assert.equal(await verifyPassword("new-admin", patch.adminPasswordHash), true);
 });
 
 test("tenant update patches preserve, set, and explicitly clear public data service keys", async () => {
@@ -210,12 +177,6 @@ test("tenant update patches preserve, set, and explicitly clear public data serv
   });
 });
 
-test("tenant update patches can clear the view password", async () => {
-  assert.deepEqual(await buildTenantUpdatePatch({ clearViewPassword: true }), {
-    viewPasswordHash: "",
-  });
-});
-
 test("tenant list items redact secrets for the operator dashboard", () => {
   assert.deepEqual(
     tenantListItem({
@@ -223,8 +184,6 @@ test("tenant list items redact secrets for the operator dashboard", () => {
       slug: "school-a",
       orgName: "가람초등학교",
       spreadsheetId: "secret-sheet",
-      viewPasswordHash: "view-hash",
-      editPasswordHash: "edit-hash",
       adminPasswordHash: "admin-hash",
       appSecret: "secret",
       status: "active",

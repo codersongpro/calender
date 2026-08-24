@@ -354,17 +354,6 @@ export default function PlannerApp({ slug }) {
     setSchoolYear((value) => Number(value || currentSchoolYear()) + amount);
   }
 
-  async function unlock(scope, password) {
-    const data = await request(`${basePath}/auth/${scope}`, {
-      method: "POST",
-      body: { password },
-      label: scope === "edit" ? "편집 권한이 열렸습니다." : "조회 권한이 열렸습니다.",
-    });
-    if (!data?.authenticated) return;
-    await loadConfig();
-    await loadMonth();
-  }
-
   function beginCreate(date = "") {
     if (!config?.canEdit) return;
     setEditingEventId("");
@@ -522,21 +511,6 @@ export default function PlannerApp({ slug }) {
     );
   }
 
-  if (!config.authenticated) {
-    return (
-      <main className="setup-page">
-        <section className="setup-panel">
-          <div className="setup-heading">
-            <p className="eyebrow">내부 조회</p>
-            <h1>조회 비밀번호를 입력해 주세요.</h1>
-          </div>
-          <PasswordUnlock label="조회 비밀번호" buttonLabel="열기" onSubmit={(password) => unlock("view", password)} />
-          <StatusBar status={status} error={error} />
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -594,14 +568,6 @@ export default function PlannerApp({ slug }) {
             ))}
           </select>
         </label>
-        {!config.canEdit ? (
-          <PasswordUnlock
-            label="편집 비밀번호"
-            buttonLabel="편집권한부여"
-            buttonClassName="highlight-button"
-            onSubmit={(password) => unlock("edit", password)}
-          />
-        ) : null}
         <label>
           <span>용지 크기</span>
           <select value={paperSize} onChange={(event) => setPaperSize(event.target.value)}>

@@ -25,7 +25,7 @@ export async function GET(request, context) {
         ...publicState,
         authenticated: true,
         orgName: tenant.orgName,
-        canEdit: payload.scope === "edit" || canAdmin,
+        canEdit: true,
         canAdmin,
         ...(canAdmin ? { spreadsheetId: tenant.spreadsheetId } : {}),
         ...(canAdmin ? getPublicDataServiceKeyState(tenant) : {}),

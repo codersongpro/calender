@@ -124,15 +124,11 @@ export default function OperatorAdminApp() {
   }
 
   async function resetPasswords(slug) {
-    const viewPassword = window.prompt("새 조회 비밀번호");
-    if (viewPassword === null) return;
-    const editPassword = window.prompt("새 편집 비밀번호");
-    if (editPassword === null) return;
     const adminPassword = window.prompt("새 학교 운영자 비밀번호");
     if (adminPassword === null) return;
     const data = await request(`/api/operator/tenants/${encodeURIComponent(slug)}`, {
       method: "PATCH",
-      body: { viewPassword, editPassword, adminPassword },
+      body: { adminPassword },
       label: "학교 비밀번호를 재설정했습니다.",
     });
     if (data) await loadTenants();
@@ -221,7 +217,7 @@ export default function OperatorAdminApp() {
           </li>
           <li>
             <strong>학교 사이트 생성</strong>
-            <span>기관명, 학교코드, 스프레드시트 주소, 조회/편집/학교 운영자 비밀번호를 입력합니다.</span>
+            <span>기관명, 학교코드, 스프레드시트 주소, 학교 운영자 비밀번호를 입력합니다.</span>
           </li>
           <li>
             <strong>주소 전달</strong>
@@ -233,7 +229,7 @@ export default function OperatorAdminApp() {
           </li>
           <li>
             <strong>월별 계획 운영</strong>
-            <span>편집 비밀번호로 행사를 추가·수정하고, 필요할 때만 조회 비밀번호를 설정합니다.</span>
+            <span>주소를 아는 누구나 조회·편집할 수 있으며, 학교 설정은 학교 운영자 비밀번호로 보호됩니다.</span>
           </li>
         </ol>
       </section>
@@ -257,15 +253,6 @@ export default function OperatorAdminApp() {
             <input name="spreadsheetUrl" required placeholder="https://docs.google.com/spreadsheets/d/..." />
           </label>
           <GoogleServiceAccountGuide />
-          <label>
-            <span>조회 비밀번호</span>
-            <input name="viewPassword" type="password" minLength={4} />
-            <small className="field-help">비워 두면 주소를 아는 사람이 바로 조회할 수 있습니다.</small>
-          </label>
-          <label>
-            <span>편집 비밀번호</span>
-            <input name="editPassword" type="password" required minLength={4} />
-          </label>
           <label>
             <span>학교 운영자 비밀번호</span>
             <input name="adminPassword" type="password" required minLength={4} />

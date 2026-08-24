@@ -189,17 +189,15 @@ export async function buildTenantCreateRecord(input) {
   const orgName = String(input.orgName ?? "").trim();
   if (!orgName) throw new Error("기관명을 입력해 주세요.");
   const spreadsheetId = extractSpreadsheetId(input.spreadsheetUrl || input.spreadsheetId);
-  assertPasswordInput(input.editPassword, "편집 비밀번호");
   assertPasswordInput(input.adminPassword, "관리 비밀번호");
-  const viewPassword = String(input.viewPassword ?? "");
 
   return {
     id: `tenant_${randomBytes(12).toString("hex")}`,
     slug: normalizeTenantSlug(input.slug),
     orgName,
     spreadsheetId,
-    viewPasswordHash: viewPassword ? await hashPassword(viewPassword) : "",
-    editPasswordHash: await hashPassword(String(input.editPassword)),
+    viewPasswordHash: "",
+    editPasswordHash: "",
     adminPasswordHash: await hashPassword(String(input.adminPassword)),
     appSecret: randomBytes(16).toString("hex"),
     publicDataServiceKey: String(input.publicDataServiceKey ?? "").trim(),
@@ -214,12 +212,6 @@ export async function buildTenantUpdatePatch(input) {
   if (String(input.spreadsheetUrl ?? input.spreadsheetId ?? "").trim()) {
     patch.spreadsheetId = extractSpreadsheetId(input.spreadsheetUrl || input.spreadsheetId);
   }
-  if (input.clearViewPassword === true || input.clearViewPassword === "true") {
-    patch.viewPasswordHash = "";
-  } else if (String(input.viewPassword ?? "")) {
-    patch.viewPasswordHash = await hashPassword(String(input.viewPassword));
-  }
-  if (String(input.editPassword ?? "")) patch.editPasswordHash = await hashPassword(String(input.editPassword));
   if (String(input.adminPassword ?? "")) patch.adminPasswordHash = await hashPassword(String(input.adminPassword));
   const publicDataServiceKey = String(input.publicDataServiceKey ?? "").trim();
   if (input.clearPublicDataServiceKey === true || input.clearPublicDataServiceKey === "true") {

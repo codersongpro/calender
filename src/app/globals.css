@@ -1438,19 +1438,25 @@ input[type="file"] {
     break-inside: avoid;
   }
 
-  /* Screen widths (globals.css:339-358) are tuned for the small on-screen
-     font; at the much larger print font-size the 시간/장소/담당자 columns
-     they leave behind are too narrow for their usual content. Re-split the
-     table width in percentages so those columns get a fair share up front,
-     which reduces (but per-row content length can still vary, so it can't
-     eliminate) how often printPageFit() needs to shrink a row. */
+  /* Screen widths (globals.css:521-539) are fixed px (48/48/88/116/160/110)
+     tuned for the small on-screen font, with 일정 제목 taking whatever
+     remains of the container. At the much larger print font-size those px
+     values would be too narrow for 시간/장소/담당자's usual content, so the
+     six fixed columns are scaled up to a 66%-of-page budget here instead of
+     staying literal px - but each column's SHARE of that 66% is kept
+     proportional to its screen px width (e.g. 장소:담당자 stays close to its
+     screen 160:110 ratio) so the printed table still reads as the same
+     layout as the screen, just scaled for the print font, rather than a
+     separately hand-picked set of widths. 일정 제목 gets the other 34%, same
+     as its role of absorbing whatever width the fixed columns don't need.
+  */
   .planner-table th:nth-child(1),
   .planner-table th:nth-child(2) {
-    width: 5%;
+    width: 6%;
   }
 
   .planner-table th:nth-child(3) {
-    width: 9%;
+    width: 10%;
   }
 
   .planner-table th:nth-child(4) {
@@ -1458,11 +1464,11 @@ input[type="file"] {
   }
 
   .planner-table th:nth-child(6) {
-    width: 18%;
+    width: 19%;
   }
 
   .planner-table th:nth-child(7) {
-    width: 16%;
+    width: 12%;
   }
 
   /*
