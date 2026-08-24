@@ -1438,26 +1438,19 @@ input[type="file"] {
     break-inside: avoid;
   }
 
-  /* Fallback only: syncPrintColumnRatiosToScreen() in PlannerApp.jsx measures
-     each header cell's ACTUAL on-screen width right before print and sets it
-     as an inline % (which wins over these nth-child rules by specificity),
-     so print always matches whatever ratio the screen happens to be showing.
-     These percentages just keep a sane layout for the rare case that JS
-     hasn't run yet (e.g. printing fires before hydration). They mirror the
-     screen's fixed px widths (48/48/88/116/160/110, globals.css:521-539)
-     scaled up to a 66%-of-page budget - each column's share of that 66% is
-     kept proportional to its screen px width (e.g. 장소:담당자 stays close to
-     its screen 160:110 ratio) rather than a separately hand-picked set of
-     numbers - with 일정 제목 taking the remaining 34%, same as its role on
-     screen of absorbing whatever width the other columns don't need.
-  */
+  /* Screen widths (globals.css:339-358) are tuned for the small on-screen
+     font; at the much larger print font-size the 시간/장소/담당자 columns
+     they leave behind are too narrow for their usual content. Re-split the
+     table width in percentages so those columns get a fair share up front,
+     which reduces (but per-row content length can still vary, so it can't
+     eliminate) how often printPageFit() needs to shrink a row. */
   .planner-table th:nth-child(1),
   .planner-table th:nth-child(2) {
-    width: 6%;
+    width: 5%;
   }
 
   .planner-table th:nth-child(3) {
-    width: 10%;
+    width: 9%;
   }
 
   .planner-table th:nth-child(4) {
@@ -1465,11 +1458,11 @@ input[type="file"] {
   }
 
   .planner-table th:nth-child(6) {
-    width: 19%;
+    width: 18%;
   }
 
   .planner-table th:nth-child(7) {
-    width: 12%;
+    width: 16%;
   }
 
   /*

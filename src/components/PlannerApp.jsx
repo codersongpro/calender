@@ -16,6 +16,173 @@ import {
   splitDaysForPrint,
 } from "../lib/domain.js";
 
+const CSS_PX_PER_MM = 96 / 25.4;
+
+// Every property @media print overrides on the print surface and the table
+// inside it. "화면 비율 그대로" printing works by reading each element's
+// on-screen computed value for exactly these properties and pinning it as an
+// !important inline style: inline wins over the print stylesheet, so those
+// print rules (one-page row squeezing, print font sizes, print column
+// percentages) simply never take effect and the sheet renders the screen's
+// own layout. Anything NOT listed here still comes from the print stylesheet
+// on purpose - notably `tbody tr { break-inside: avoid }`, which is what
+// keeps a row from being torn in half across two sheets.
+const SCREEN_RATIO_FROZEN_PROPERTIES = [
+  "display",
+  "width",
+  "height",
+  "min-height",
+  "max-height",
+  "margin-top",
+  "margin-right",
+  "margin-bottom",
+  "margin-left",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
+  "border-top-style",
+  "border-right-style",
+  "border-bottom-style",
+  "border-left-style",
+  "font-size",
+  "line-height",
+  "white-space",
+  "overflow",
+  "align-items",
+  "flex-direction",
+];
+
+const SCREEN_RATIO_FROZEN_SELECTOR = [
+  ".print-title",
+  ".print-title h2",
+  ".print-title p",
+  ".planner-table",
+  ".planner-table thead th",
+  ".planner-table tbody tr",
+  ".planner-table tbody td",
+  ".holiday-line",
+  ".holiday-line span",
+  ".category-pill",
+  ".date-cell .date-button",
+  ".title-cell .event-title",
+].join(", ");
+
+// Short fixed labels that occupy exactly one line on screen. Scaling the sheet
+// rounds every frozen width down by a sub-pixel, which is enough to tip one of
+// these into wrapping ("출장" breaking into 출/장, "2026학년도" into two lines)
+// even though it never wraps on screen - so they are pinned to one line.
+// Free-text cells (일정 제목/장소/담당자) are deliberately left out: whatever
+// they do on screen is what should show up on paper.
+const SCREEN_RATIO_NOWRAP_SELECTOR = [
+  ".print-title h2",
+  ".print-title p",
+  ".category-pill",
+  ".holiday-line span",
+  ".date-cell .date-button",
+].join(", ");
+
+// [element, its inline style attribute before we touched it] so afterprint can
+// put the page back exactly as it was rather than guessing at defaults.
+let screenRatioRestore = [];
+
+function overrideInlineStyle(element, declarations) {
+  screenRatioRestore.push([element, element.getAttribute("style")]);
+  Object.entries(declarations).forEach(([property, value]) => {
+    if (value) element.style.setProperty(property, value, "important");
+  });
+}
+
+function freezeScreenComputedStyle(element) {
+  const computed = window.getComputedStyle(element);
+  const frozen = {};
+  SCREEN_RATIO_FROZEN_PROPERTIES.forEach((property) => {
+    frozen[property] = computed.getPropertyValue(property);
+  });
+  overrideInlineStyle(element, frozen);
+}
+
+// Pins the printed sheet to the on-screen layout, then scales the whole thing
+// down so the table's screen width lands exactly on the paper's printable
+// width. Because it is a single uniform scale, every column keeps its
+// on-screen proportion; the table simply flows onto as many sheets as its
+// natural height needs instead of being squeezed into one.
+//
+// MUST be called while screen styles are still live (from the 인쇄 button, or
+// from beforeprint, which browsers fire against the screen layout) - measuring
+// once @media print has taken over would just read the print rules back.
+export function applyScreenRatioPrintLayout(paperKey) {
+  // Already applied (printPlanner ran, then beforeprint fired for the same
+  // print). Re-running would measure the already-scaled table and scale it a
+  // second time, so the sheet would come out at scale².
+  if (screenRatioRestore.length) return true;
+  const surfaces = Array.from(document.querySelectorAll(".print-surface"));
+  const referenceTable = surfaces[0]?.querySelector(".planner-table");
+  if (!referenceTable) return false;
+  const tableWidth = referenceTable.getBoundingClientRect().width;
+  // Zero width means the table isn't the visible layout right now (the mobile
+  // breakpoint hides it in favour of .mobile-cards), so there is no on-screen
+  // ratio to copy - leave the normal fit-to-page print rules alone.
+  if (!tableWidth) return false;
+
+  const paper = getPrintPaper(paperKey);
+  const printableWidth = (paper.widthMm - PRINT_MARGIN_MM * 2) * CSS_PX_PER_MM;
+  const scale = printableWidth / tableWidth;
+
+  surfaces.forEach((surface) => {
+    surface.querySelectorAll(SCREEN_RATIO_FROZEN_SELECTOR).forEach(freezeScreenComputedStyle);
+    surface.querySelectorAll(SCREEN_RATIO_NOWRAP_SELECTOR).forEach((element) => {
+      overrideInlineStyle(element, { "white-space": "nowrap" });
+    });
+    // The org name is hidden on screen, so there is no screen size to copy and
+    // it keeps the print stylesheet's 10px - which the zoom below would shrink
+    // to an unreadable ~6px. Dividing by the scale cancels the zoom out so it
+    // lands on paper at the same 10px the fit-to-page sheet uses.
+    const orgName = surface.querySelector(".print-org-name");
+    if (orgName) {
+      overrideInlineStyle(orgName, {
+        "font-size": `${10 / scale}px`,
+        "white-space": "nowrap",
+      });
+    }
+    // zoom (not transform) because zoom scales the layout itself, so the
+    // browser paginates the scaled boxes; a transform would leave the
+    // unscaled height in the flow and mis-split the pages.
+    overrideInlineStyle(surface, {
+      zoom: String(scale),
+      margin: "0",
+      width: "auto",
+      height: "auto",
+      "min-height": "0",
+      "max-height": "none",
+      display: "block",
+      overflow: "visible",
+      transform: "none",
+      "break-inside": "auto",
+      "page-break-inside": "auto",
+      "break-after": "auto",
+      "page-break-after": "auto",
+    });
+  });
+
+  // Print's `html, body { overflow: hidden }` exists to keep the fit-to-page
+  // sheet from spilling; here the sheet is meant to run past one page.
+  overrideInlineStyle(document.body, { overflow: "visible", height: "auto" });
+  return true;
+}
+
+export function clearScreenRatioPrintLayout() {
+  screenRatioRestore.forEach(([element, previousStyle]) => {
+    if (previousStyle === null) element.removeAttribute("style");
+    else element.setAttribute("style", previousStyle);
+  });
+  screenRatioRestore = [];
+}
+
 const blankEvent = {
   date: "",
   endDate: "",
@@ -41,6 +208,7 @@ export default function PlannerApp({ slug }) {
   const [showEventForm, setShowEventForm] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
   const [printPages, setPrintPages] = useState(1);
+  const [printMode, setPrintMode] = useState("fit");
   const [paperSize, setPaperSize] = useState("A4");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
@@ -55,6 +223,13 @@ export default function PlannerApp({ slug }) {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const searchBandRef = useRef(null);
   const filterBandRef = useRef(null);
+  // The print listeners are registered once (empty-deps effect) but need the
+  // mode selected at the moment printing actually starts, so they read it
+  // through a ref instead of closing over a stale render's value.
+  const printModeRef = useRef(printMode);
+  printModeRef.current = printMode;
+  const paperSizeRef = useRef(paperSize);
+  paperSizeRef.current = paperSize;
   const monthOptions = monthData?.monthOptions?.length ? monthData.monthOptions : getMonthOptions(schoolYear);
   const filteredDays = useMemo(() => {
     if (!monthData) return [];
@@ -64,7 +239,12 @@ export default function PlannerApp({ slug }) {
       events: day.events.filter((event) => !excludedCategories.has(event.category)),
     }));
   }, [monthData, excludedCategories]);
-  const printPageGroups = monthData ? splitDaysForPrint(filteredDays, printPages) : [];
+  // Splitting the month across a fixed number of sheets is a fit-to-page idea:
+  // in 화면 비율 그대로 mode the sheet count follows from the table's natural
+  // height, so the whole month stays one flowing table.
+  const printPageGroups = monthData
+    ? splitDaysForPrint(filteredDays, printMode === "screen" ? 1 : printPages)
+    : [];
 
   useEffect(() => {
     loadConfig();
@@ -156,12 +336,33 @@ export default function PlannerApp({ slug }) {
       });
       resetPrintSurfaceScale();
     }
-    function handlePrintMediaChange(event) {
-      if (event.matches) shrinkPrintCellsToFit();
-      else resetPrintCellFontSizes();
+    // 화면 비율 그대로 mode replaces the whole fit-to-page pass: its point is
+    // to keep the screen's own row heights and font sizes, so shrinking cells
+    // and squeezing the table would undo exactly what it is for.
+    function handleBeforePrint() {
+      if (printModeRef.current === "screen") {
+        if (applyScreenRatioPrintLayout(paperSizeRef.current)) return;
+      }
+      shrinkPrintCellsToFit();
     }
-    window.addEventListener("beforeprint", shrinkPrintCellsToFit);
-    window.addEventListener("afterprint", resetPrintCellFontSizes);
+    function handleAfterPrint() {
+      clearScreenRatioPrintLayout();
+      resetPrintCellFontSizes();
+    }
+    function handlePrintMediaChange(event) {
+      if (!event.matches) {
+        handleAfterPrint();
+        return;
+      }
+      // Only the fit-to-page pass may run from here: this fires once the
+      // browser has already switched to print layout, so the screen-ratio
+      // pass would measure the print rules instead of the screen. It is
+      // applied ahead of time from printPlanner()/beforeprint instead.
+      if (printModeRef.current === "screen") return;
+      shrinkPrintCellsToFit();
+    }
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
     // beforeprint/afterprint timing has historically been inconsistent
     // across browsers - matchMedia's change event fires exactly when the
     // browser's rendering actually switches to/from print layout, so it's
@@ -170,48 +371,11 @@ export default function PlannerApp({ slug }) {
     const printMediaQuery = window.matchMedia("print");
     printMediaQuery.addEventListener("change", handlePrintMediaChange);
     return () => {
-      window.removeEventListener("beforeprint", shrinkPrintCellsToFit);
-      window.removeEventListener("afterprint", resetPrintCellFontSizes);
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
       printMediaQuery.removeEventListener("change", handlePrintMediaChange);
     };
   }, []);
-
-  useEffect(() => {
-    // Locks each header column's print width to whatever ratio it's
-    // CURRENTLY rendered at on screen, so the printed table always matches
-    // what the user sees rather than a separately maintained set of print
-    // percentages. This has to run while normal (screen) styles are still
-    // active - by the time beforeprint/matchMedia('print') fire elsewhere in
-    // this file, the browser has already switched to @media print layout, so
-    // measuring there would just read back print CSS's own numbers instead
-    // of the screen ratio. Setting the result as an inline % width (highest
-    // specificity) is what then carries that screen ratio into print: the
-    // print stylesheet's own th:nth-child widths only apply as the css
-    // fallback below.
-    function syncPrintColumnRatiosToScreen() {
-      const referenceTable = document.querySelector(".planner-table");
-      if (!referenceTable) return;
-      const headerCells = referenceTable.querySelectorAll("thead th");
-      if (!headerCells.length) return;
-      // Clear this table's own previous override first so a resize measures
-      // the CSS-driven layout again instead of reinforcing whatever ratio
-      // was captured last time.
-      headerCells.forEach((cell) => {
-        cell.style.width = "";
-      });
-      const widths = Array.from(headerCells).map((cell) => cell.getBoundingClientRect().width);
-      const total = widths.reduce((sum, width) => sum + width, 0);
-      if (!total) return;
-      document.querySelectorAll(".planner-table").forEach((table) => {
-        table.querySelectorAll("thead th").forEach((cell, index) => {
-          cell.style.width = `${(widths[index] / total) * 100}%`;
-        });
-      });
-    }
-    syncPrintColumnRatiosToScreen();
-    window.addEventListener("resize", syncPrintColumnRatiosToScreen);
-    return () => window.removeEventListener("resize", syncPrintColumnRatiosToScreen);
-  }, [monthData, printPageGroups.length]);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -507,6 +671,11 @@ export default function PlannerApp({ slug }) {
       window.removeEventListener("afterprint", restore);
     };
     window.addEventListener("afterprint", restore);
+    // Capture the screen layout here, before window.print() hands control to
+    // the browser: this is the one moment we can be certain screen styles are
+    // still the ones being measured. (beforeprint covers Ctrl+P; both are
+    // safe to run because the second call finds the layout already applied.)
+    if (printMode === "screen") applyScreenRatioPrintLayout(paperSize);
     window.print();
   }
 
@@ -616,11 +785,25 @@ export default function PlannerApp({ slug }) {
           </select>
         </label>
         <label>
+          <span>인쇄 방식</span>
+          <select value={printMode} onChange={(event) => setPrintMode(event.target.value)}>
+            <option value="fit">용지에 맞추기</option>
+            <option value="screen">화면 비율 그대로</option>
+          </select>
+        </label>
+        <label>
           <span>인쇄 페이지</span>
-          <select value={printPages} onChange={(event) => setPrintPages(Number(event.target.value))}>
+          <select
+            value={printPages}
+            onChange={(event) => setPrintPages(Number(event.target.value))}
+            disabled={printMode === "screen"}
+          >
             <option value={1}>1페이지에 맞추기</option>
             <option value={2}>2페이지로 나누기</option>
           </select>
+          {printMode === "screen" ? (
+            <small className="field-help">화면 비율 그대로는 내용 길이에 따라 쪽수가 정해집니다.</small>
+          ) : null}
         </label>
         <div className="filter-band" ref={filterBandRef}>
           <span className="filter-label">구분 필터</span>

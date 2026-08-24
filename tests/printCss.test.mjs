@@ -82,45 +82,6 @@ test("print title occupies exactly its budgeted height so it can't push the last
   assert.match(printCss, /\.print-title p\s*{[^}]*margin:\s*0;/s);
 });
 
-test("print column widths keep the same relative ratio as the screen column widths", async () => {
-  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
-  const printIndex = css.indexOf("@media print");
-  const screenCss = css.slice(0, printIndex);
-  const printCss = css.slice(printIndex);
-
-  function widthOf(source, selector, unit) {
-    const pattern = new RegExp(`${selector}\\s*{[^}]*width:\\s*(\\d+)${unit};`, "s");
-    const match = source.match(pattern);
-    assert.ok(match, `missing ${unit} width for ${selector}`);
-    return Number(match[1]);
-  }
-
-  const columns = {
-    dateWeekday: String.raw`\.planner-table th:nth-child\(1\),\s*\n\s*\.planner-table th:nth-child\(2\)`,
-    category: String.raw`\.planner-table th:nth-child\(3\)`,
-    time: String.raw`\.planner-table th:nth-child\(4\)`,
-    place: String.raw`\.planner-table th:nth-child\(6\)`,
-    owner: String.raw`\.planner-table th:nth-child\(7\)`,
-  };
-
-  // Every column's print percentage divided by its screen px should land on
-  // roughly the same scale factor - i.e. the print widths are the screen
-  // widths scaled up to fill a larger budget for the bigger print font, not
-  // a separately hand-picked set of numbers that changes which columns look
-  // bigger relative to each other than they do on screen.
-  const scaleFactors = Object.values(columns).map((selector) => {
-    const screenPx = widthOf(screenCss, selector, "px");
-    const printPercent = widthOf(printCss, selector, "%");
-    return printPercent / screenPx;
-  });
-  const maxFactor = Math.max(...scaleFactors);
-  const minFactor = Math.min(...scaleFactors);
-  assert.ok(
-    maxFactor / minFactor < 1.2,
-    `print column widths drift from the screen ratio by more than 20% (scale factors: ${JSON.stringify(scaleFactors)})`,
-  );
-});
-
 test("print title is enlarged and no cell text is ever ellipsis-truncated", async () => {
   const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
   const printCss = css.slice(css.indexOf("@media print"));
