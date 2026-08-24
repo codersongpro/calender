@@ -177,6 +177,43 @@ export default function PlannerApp({ slug }) {
   }, []);
 
   useEffect(() => {
+    // Locks each header column's print width to whatever ratio it's
+    // CURRENTLY rendered at on screen, so the printed table always matches
+    // what the user sees rather than a separately maintained set of print
+    // percentages. This has to run while normal (screen) styles are still
+    // active - by the time beforeprint/matchMedia('print') fire elsewhere in
+    // this file, the browser has already switched to @media print layout, so
+    // measuring there would just read back print CSS's own numbers instead
+    // of the screen ratio. Setting the result as an inline % width (highest
+    // specificity) is what then carries that screen ratio into print: the
+    // print stylesheet's own th:nth-child widths only apply as the css
+    // fallback below.
+    function syncPrintColumnRatiosToScreen() {
+      const referenceTable = document.querySelector(".planner-table");
+      if (!referenceTable) return;
+      const headerCells = referenceTable.querySelectorAll("thead th");
+      if (!headerCells.length) return;
+      // Clear this table's own previous override first so a resize measures
+      // the CSS-driven layout again instead of reinforcing whatever ratio
+      // was captured last time.
+      headerCells.forEach((cell) => {
+        cell.style.width = "";
+      });
+      const widths = Array.from(headerCells).map((cell) => cell.getBoundingClientRect().width);
+      const total = widths.reduce((sum, width) => sum + width, 0);
+      if (!total) return;
+      document.querySelectorAll(".planner-table").forEach((table) => {
+        table.querySelectorAll("thead th").forEach((cell, index) => {
+          cell.style.width = `${(widths[index] / total) * 100}%`;
+        });
+      });
+    }
+    syncPrintColumnRatiosToScreen();
+    window.addEventListener("resize", syncPrintColumnRatiosToScreen);
+    return () => window.removeEventListener("resize", syncPrintColumnRatiosToScreen);
+  }, [monthData, printPageGroups.length]);
+
+  useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch(() => {
       // Add-to-home-screen still works without the service worker on most

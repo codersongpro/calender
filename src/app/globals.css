@@ -1438,17 +1438,18 @@ input[type="file"] {
     break-inside: avoid;
   }
 
-  /* Screen widths (globals.css:521-539) are fixed px (48/48/88/116/160/110)
-     tuned for the small on-screen font, with 일정 제목 taking whatever
-     remains of the container. At the much larger print font-size those px
-     values would be too narrow for 시간/장소/담당자's usual content, so the
-     six fixed columns are scaled up to a 66%-of-page budget here instead of
-     staying literal px - but each column's SHARE of that 66% is kept
-     proportional to its screen px width (e.g. 장소:담당자 stays close to its
-     screen 160:110 ratio) so the printed table still reads as the same
-     layout as the screen, just scaled for the print font, rather than a
-     separately hand-picked set of widths. 일정 제목 gets the other 34%, same
-     as its role of absorbing whatever width the fixed columns don't need.
+  /* Fallback only: syncPrintColumnRatiosToScreen() in PlannerApp.jsx measures
+     each header cell's ACTUAL on-screen width right before print and sets it
+     as an inline % (which wins over these nth-child rules by specificity),
+     so print always matches whatever ratio the screen happens to be showing.
+     These percentages just keep a sane layout for the rare case that JS
+     hasn't run yet (e.g. printing fires before hydration). They mirror the
+     screen's fixed px widths (48/48/88/116/160/110, globals.css:521-539)
+     scaled up to a 66%-of-page budget - each column's share of that 66% is
+     kept proportional to its screen px width (e.g. 장소:담당자 stays close to
+     its screen 160:110 ratio) rather than a separately hand-picked set of
+     numbers - with 일정 제목 taking the remaining 34%, same as its role on
+     screen of absorbing whatever width the other columns don't need.
   */
   .planner-table th:nth-child(1),
   .planner-table th:nth-child(2) {
