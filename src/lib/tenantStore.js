@@ -22,8 +22,25 @@ const TENANT_COLUMNS = `
 
 const OPERATOR_PASSWORD_KEY = "operatorPasswordHash";
 
+// The schema is created once per process, not once per request: every read
+// path (getTenantBySlug on each API call) used to re-issue three DDL
+// statements, so a single page load spent several database round trips just
+// re-confirming tables that already exist.
+const schemaReadyBySql = new WeakMap();
+
 export async function ensureTenantSchema(sqlPromise = getSql()) {
   const sql = await sqlPromise;
+  const pending = schemaReadyBySql.get(sql);
+  if (pending) return pending;
+  const promise = createTenantSchema(sql).catch((error) => {
+    schemaReadyBySql.delete(sql);
+    throw error;
+  });
+  schemaReadyBySql.set(sql, promise);
+  return promise;
+}
+
+async function createTenantSchema(sql) {
   await runQuery(sql, `
     CREATE TABLE IF NOT EXISTS tenants (
       id TEXT PRIMARY KEY,

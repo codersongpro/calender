@@ -19,6 +19,8 @@ import {
   getOperatorPasswordHash,
   buildOperatorPasswordRecord,
   buildOperatorPasswordPatch,
+  ensureTenantSchema,
+  getTenantBySlug,
   tenantListItem,
 } from "../src/lib/tenantStore.js";
 import { verifyPassword } from "../src/lib/security.js";
@@ -231,4 +233,25 @@ test("operator password patches hash changed main operator passwords", async () 
   const patch = await buildOperatorPasswordPatch({ password: "new-main-secret" });
 
   assert.equal(await verifyPassword("new-main-secret", patch.value), true);
+});
+
+test("tenant schema statements run once per connection, not on every lookup", async () => {
+  const calls = [];
+  function sql() {
+    throw new Error("tagged template only");
+  }
+  sql.query = async (query, params = []) => {
+    calls.push({ query, params });
+    return [];
+  };
+
+  await ensureTenantSchema(sql);
+  await getTenantBySlug("seoul-es", { sql });
+  await getTenantBySlug("seoul-es", { sql });
+
+  const ddlCalls = calls.filter(({ query }) => /CREATE (TABLE|INDEX)/.test(query));
+  const selectCalls = calls.filter(({ query }) => query.includes("FROM tenants WHERE slug"));
+
+  assert.equal(ddlCalls.length, 3);
+  assert.equal(selectCalls.length, 2);
 });

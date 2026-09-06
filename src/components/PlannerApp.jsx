@@ -454,18 +454,20 @@ export default function PlannerApp({ slug }) {
     window.__deferredInstallPrompt = null;
   }
 
+  // The month load doesn't wait for /config to answer first: viewing is open
+  // to everyone, so chaining the two requests only added one full round trip
+  // to the wait before the table could appear.
   useEffect(() => {
-    if (config?.authenticated) loadMonth();
-  }, [config?.authenticated, schoolYear, month]);
+    loadMonth();
+  }, [basePath, schoolYear, month]);
 
   useEffect(() => {
-    if (!config?.authenticated) return;
     function handlePlannerChanged(event) {
-      if (event.key === plannerChangedKey(slug)) loadMonth();
+      if (event.key === plannerChangedKey(slug)) loadMonth({ refresh: true });
     }
     window.addEventListener("storage", handlePlannerChanged);
     return () => window.removeEventListener("storage", handlePlannerChanged);
-  }, [config?.authenticated, slug, schoolYear, month]);
+  }, [slug, schoolYear, month]);
 
   useEffect(() => {
     if (!config?.authenticated) return;
@@ -521,8 +523,10 @@ export default function PlannerApp({ slug }) {
     await request(`${basePath}/config`, { setData: setConfig, label: "설정을 불러왔습니다.", quiet: true });
   }
 
-  async function loadMonth() {
-    await request(`${basePath}/month?schoolYear=${schoolYear}&month=${month}`, {
+  // refresh: true bypasses the server's short-lived sheet cache - used right
+  // after an edit so the change is visible immediately.
+  async function loadMonth({ refresh = false } = {}) {
+    await request(`${basePath}/month?schoolYear=${schoolYear}&month=${month}${refresh ? "&refresh=1" : ""}`, {
       setData: (data) => {
         setMonthData(data);
         if (data.month !== month) setMonth(data.month);
@@ -620,7 +624,7 @@ export default function PlannerApp({ slug }) {
       if (data) {
         setShowEventForm(false);
         await loadConfig();
-        await loadMonth();
+        await loadMonth({ refresh: true });
       }
     } finally {
       setSavingEvent(false);
@@ -633,7 +637,7 @@ export default function PlannerApp({ slug }) {
       body: { reviewNeeded: "" },
       quiet: true,
     });
-    if (data) await loadMonth();
+    if (data) await loadMonth({ refresh: true });
   }
 
   async function deleteCurrentEvent() {
@@ -646,7 +650,7 @@ export default function PlannerApp({ slug }) {
       });
       if (data) {
         setShowEventForm(false);
-        await loadMonth();
+        await loadMonth({ refresh: true });
       }
     } finally {
       setSavingEvent(false);

@@ -58,10 +58,11 @@ test("school admin status remains visible while managing uploads", async () => {
   assert.match(css, /\.admin-page > \.status\s*{[^}]*position:\s*sticky;[^}]*top:\s*0;/s);
 });
 
-test("month data route reads fresh sheet data so uploads appear immediately", async () => {
+test("month data route bypasses the sheet cache only when refresh is asked for", async () => {
   const source = await readFile(new URL("../src/app/api/schools/[slug]/month/route.js", import.meta.url), "utf8");
 
-  assert.match(source, /getMonthData\(tenant,\s*{ year: monthOption\.year, month: monthOption\.month },\s*{ cacheTtlMs: 0 }\)/);
+  assert.match(source, /const refresh = params\.get\("refresh"\) === "1"/);
+  assert.match(source, /refresh \? { cacheTtlMs: 0 } : {}/);
 });
 
 test("workbook upload notifies open planner tabs to reload imported events", async () => {
@@ -71,7 +72,7 @@ test("workbook upload notifies open planner tabs to reload imported events", asy
   assert.match(adminSource, /notifyPlannerChanged\(slug\)/);
   assert.match(adminSource, /window\.localStorage\.setItem\(plannerChangedKey\(slug\), String\(Date\.now\(\)\)\)/);
   assert.match(plannerSource, /window\.addEventListener\("storage", handlePlannerChanged\)/);
-  assert.match(plannerSource, /if \(event\.key === plannerChangedKey\(slug\)\) loadMonth\(\)/);
+  assert.match(plannerSource, /if \(event\.key === plannerChangedKey\(slug\)\) loadMonth\({ refresh: true }\)/);
 });
 
 test("print pdf keeps table title and weekend shading", async () => {
@@ -79,4 +80,19 @@ test("print pdf keeps table title and weekend shading", async () => {
 
   assert.match(css, /@media print\s*{[\s\S]*\.print-title\s*{[^}]*display:\s*flex;/);
   assert.match(css, /@media print\s*{[\s\S]*\.planner-table th,\s*\.saturday-row td,\s*\.sunday-row td,\s*\.holiday-row td\s*{[^}]*-webkit-print-color-adjust:\s*exact;[^}]*print-color-adjust:\s*exact;/);
+});
+
+test("planner loads the month without waiting for the config response", async () => {
+  const source = await readFile(new URL("../src/components/PlannerApp.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /useEffect\(\(\) => {\s*loadMonth\(\);\s*}, \[basePath, schoolYear, month\]\);/);
+  assert.doesNotMatch(source, /if \(config\?\.authenticated\) loadMonth\(\)/);
+});
+
+test("school config answers from a single tenant lookup", async () => {
+  const source = await readFile(new URL("../src/app/api/schools/[slug]/config/route.js", import.meta.url), "utf8");
+  const getBody = source.slice(source.indexOf("export async function GET"), source.indexOf("export async function PATCH"));
+
+  assert.equal((getBody.match(/getTenantBySlug\(/g) ?? []).length, 1);
+  assert.match(getBody, /readTenantSessionPayload\(request, tenant, "view"\)/);
 });
